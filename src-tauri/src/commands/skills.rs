@@ -77,7 +77,10 @@ pub async fn skills_install_dep(kind: String, spec: Value) -> Result<Value, Stri
                 .and_then(|v| v.as_str())
                 .ok_or("缺少 package 参数")?
                 .to_string();
-            ("npm".to_string(), vec!["install".to_string(), "-g".to_string(), package])
+            (
+                "npm".to_string(),
+                vec!["install".to_string(), "-g".to_string(), package],
+            )
         }
         "go" => {
             let module = spec
@@ -93,7 +96,10 @@ pub async fn skills_install_dep(kind: String, spec: Value) -> Result<Value, Stri
                 .and_then(|v| v.as_str())
                 .ok_or("缺少 package 参数")?
                 .to_string();
-            ("uv".to_string(), vec!["tool".to_string(), "install".to_string(), package])
+            (
+                "uv".to_string(),
+                vec!["tool".to_string(), "install".to_string(), package],
+            )
         }
         other => return Err(format!("不支持的安装类型: {other}")),
     };
@@ -131,8 +137,7 @@ pub async fn skills_clawhub_install(slug: String) -> Result<Value, String> {
     // 确保 skills 目录存在
     let skills_dir = super::openclaw_dir().join("skills");
     if !skills_dir.exists() {
-        std::fs::create_dir_all(&skills_dir)
-            .map_err(|e| format!("创建 skills 目录失败: {e}"))?;
+        std::fs::create_dir_all(&skills_dir).map_err(|e| format!("创建 skills 目录失败: {e}"))?;
     }
 
     let output = tokio::process::Command::new("npx")

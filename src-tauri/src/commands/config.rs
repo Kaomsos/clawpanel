@@ -502,8 +502,7 @@ pub async fn list_openclaw_versions(source: String) -> Result<Vec<String>, Strin
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| format!("HTTP 初始化失败: {e}"))?;
-    let pkg = npm_package_name(&source)
-        .replace('/', "%2F");
+    let pkg = npm_package_name(&source).replace('/', "%2F");
     let registry = get_configured_registry();
     let url = format!("{registry}/{pkg}");
     let resp = client
@@ -523,8 +522,14 @@ pub async fn list_openclaw_versions(source: String) -> Result<Vec<String>, Strin
             let mut vers: Vec<String> = obj.keys().cloned().collect();
             // 按版本号排序（新版本在前）
             vers.sort_by(|a, b| {
-                let pa: Vec<u32> = a.split(|c: char| !c.is_ascii_digit()).filter_map(|s| s.parse().ok()).collect();
-                let pb: Vec<u32> = b.split(|c: char| !c.is_ascii_digit()).filter_map(|s| s.parse().ok()).collect();
+                let pa: Vec<u32> = a
+                    .split(|c: char| !c.is_ascii_digit())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                let pb: Vec<u32> = b
+                    .split(|c: char| !c.is_ascii_digit())
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
                 pb.cmp(&pa)
             });
             vers
@@ -535,7 +540,11 @@ pub async fn list_openclaw_versions(source: String) -> Result<Vec<String>, Strin
 
 /// 执行 npm 全局安装/升级/降级 openclaw（流式推送日志）
 #[tauri::command]
-pub async fn upgrade_openclaw(app: tauri::AppHandle, source: String, version: Option<String>) -> Result<String, String> {
+pub async fn upgrade_openclaw(
+    app: tauri::AppHandle,
+    source: String,
+    version: Option<String>,
+) -> Result<String, String> {
     use std::io::{BufRead, BufReader};
     use std::process::Stdio;
     use tauri::Emitter;
@@ -728,9 +737,7 @@ pub async fn uninstall_openclaw(
     let _ = app.emit("upgrade-log", "正在卸载 Gateway 服务...");
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = openclaw_command()
-            .args(["gateway", "uninstall"])
-            .output();
+        let _ = openclaw_command().args(["gateway", "uninstall"]).output();
     }
 
     // 3. npm uninstall
@@ -781,9 +788,7 @@ pub async fn uninstall_openclaw(
         "openclaw"
     };
     let _ = app.emit("upgrade-log", format!("清理 {other_pkg}..."));
-    let _ = npm_command()
-        .args(["uninstall", "-g", other_pkg])
-        .output();
+    let _ = npm_command().args(["uninstall", "-g", other_pkg]).output();
     let _ = app.emit("upgrade-progress", 80);
 
     // 5. 可选：清理配置目录
