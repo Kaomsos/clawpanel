@@ -1017,6 +1017,16 @@ mod platform {
 
 // ===== 跨平台公共接口 =====
 
+#[cfg(target_os = "linux")]
+async fn check_service_status_for_label(uid: u32, label: &str) -> (bool, Option<u32>) {
+    platform::check_service_status(uid, label).await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn check_service_status_for_label(uid: u32, label: &str) -> (bool, Option<u32>) {
+    platform::check_service_status(uid, label)
+}
+
 #[tauri::command]
 pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
     let uid = platform::current_uid()?;
@@ -1031,10 +1041,7 @@ pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
     let mut results = Vec::new();
 
     for label in &labels {
-        #[cfg(target_os = "linux")]
-        let (running, pid) = platform::check_service_status(uid, label).await;
-        #[cfg(not(target_os = "linux"))]
-        let (running, pid) = platform::check_service_status(uid, label);
+        let (running, pid) = check_service_status_for_label(uid, label).await;
 
         results.push(ServiceStatus {
             label: label.clone(),
