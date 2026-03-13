@@ -5,6 +5,18 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.8.5] - 2026-03-13
+
+### 修复 (Fixes)
+
+- **Web 模式渠道配对报错** — 补全 `pairing_list_channel` / `pairing_approve_channel` 后端 handler，飞书/钉钉配对审批不再报"未实现的命令"
+- **Web 模式插件状态报错** — 补全 `get_channel_plugin_status` / `install_channel_plugin` handler，QQ 机器人等插件保存不再 404
+- **Web 模式初始设置缺失** — 补全 `check_git` / `auto_install_git` / `configure_git_https` / `guardian_status` / `invalidate_path_cache` handler，Web 部署全流程可用
+
+### 改进 (Improvements)
+
+- **Web 模式 handler 100% 覆盖** — dev-api.js 现已覆盖 tauri-api.js 中所有命令，Web 部署不再出现"未实现的命令"错误
+
 ## [0.8.4] - 2026-03-13
 
 ### 改进 (Improvements)
