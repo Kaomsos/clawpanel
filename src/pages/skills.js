@@ -280,7 +280,13 @@ async function handleSourceSearch(page) {
   const q = input.value.trim()
   if (!q) { results.innerHTML = '<div class="clawhub-empty">输入关键词搜索社区 Skills</div>'; return }
   const source = getInstallSource()
-  // SkillHub 未安装时友好提示
+  // SkillHub 未安装时友好提示（先实时检测一次，避免竞态误判）
+  if (source === 'skillhub' && !_skillhubInstalled) {
+    try {
+      const info = await api.skillsSkillHubCheck()
+      _skillhubInstalled = !!info.installed
+    } catch { /* ignore */ }
+  }
   if (source === 'skillhub' && !_skillhubInstalled) {
     results.innerHTML = `<div style="padding:var(--space-lg);text-align:center">
       <div style="color:var(--warning);margin-bottom:8px">⚠️ 请先安装 SkillHub CLI</div>
@@ -361,6 +367,7 @@ async function handleSkillHubSetup(page) {
   if (statusEl) statusEl.textContent = '正在安装 SkillHub CLI...'
   try {
     await api.skillsSkillHubSetup(true)
+    _skillhubInstalled = true
     toast('SkillHub CLI 安装成功', 'success')
     if (statusEl) statusEl.textContent = '✅ 已安装'
     // 隐藏安装按钮

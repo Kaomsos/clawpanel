@@ -8,20 +8,35 @@ use std::os::windows::process::CommandExt;
 /// 列出所有 Skills 及其状态（openclaw skills list --json）
 #[tauri::command]
 pub async fn skills_list() -> Result<Value, String> {
-    let output = openclaw_command_async()
-        .args(["skills", "list", "--json"])
-        .output()
-        .await;
+    let output = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        openclaw_command_async()
+            .args(["skills", "list", "--json"])
+            .output(),
+    )
+    .await;
 
     match output {
-        Ok(o) if o.status.success() => {
+        Ok(Ok(o)) => {
             let stdout = String::from_utf8_lossy(&o.stdout);
-            // CLI output may contain non-JSON lines (Node warnings, update prompts).
-            // Extract the first valid JSON object or array from stdout.
-            extract_json(&stdout).ok_or_else(|| "解析失败: 输出中未找到有效 JSON".to_string())
+            // CLI 可能在有 skill 缺依赖时返回非零退出码，但 JSON 输出仍然有效
+            // 优先尝试解析 JSON，无论退出码
+            match extract_json(&stdout) {
+                Some(v) => Ok(v),
+                None => {
+                    let stderr = String::from_utf8_lossy(&o.stderr);
+                    eprintln!(
+                        "[skills] CLI JSON 解析失败 (exit={})，兜底扫描。stdout={} stderr={}",
+                        o.status.code().unwrap_or(-1),
+                        stdout.chars().take(200).collect::<String>(),
+                        stderr.chars().take(200).collect::<String>()
+                    );
+                    scan_local_skills()
+                }
+            }
         }
         _ => {
-            // CLI 不可用时，兜底扫描本地 skills 目录
+            // CLI 不可用或超时，兜底扫描本地 skills 目录
             scan_local_skills()
         }
     }
@@ -144,14 +159,14 @@ pub async fn skills_skillhub_check() -> Result<Value, String> {
     #[cfg(target_os = "windows")]
     let mut cmd = {
         let mut c = tokio::process::Command::new("cmd");
-        c.args(["/c", "skillhub", "--cli-version"]);
+        c.args(["/c", "skillhub", "--version"]);
         c.creation_flags(0x08000000);
         c
     };
     #[cfg(not(target_os = "windows"))]
     let mut cmd = {
         let mut c = tokio::process::Command::new("skillhub");
-        c.arg("--cli-version");
+        c.arg("--version");
         c
     };
     cmd.env("PATH", &path_env);

@@ -175,7 +175,7 @@ function renderSteps(page, { node, git, cliOk, config, version }) {
       }
     </div>
   `
-  // 第四步：配置文件
+  // 第四步：配置文件 + 自定义路径
   html += `
     <div class="config-section" style="text-align:left;${cliOk ? '' : 'opacity:0.4;pointer-events:none'}">
       <div class="config-section-title" style="display:flex;align-items:center;gap:4px">
@@ -188,6 +188,23 @@ function renderSteps(page, { node, git, cliOk, config, version }) {
           </p>
           <button class="btn btn-primary btn-sm" id="btn-init-config">一键初始化配置</button>`
       }
+      <details style="margin-top:var(--space-sm);cursor:pointer" id="custom-dir-details">
+        <summary style="font-size:var(--font-size-xs);color:var(--text-secondary);font-weight:600;user-select:none">
+          自定义 OpenClaw 安装路径
+        </summary>
+        <div style="margin-top:var(--space-sm);padding:10px 12px;background:var(--bg-tertiary);border-radius:var(--radius-sm);font-size:var(--font-size-xs);line-height:1.6">
+          <p style="color:var(--text-secondary);margin-bottom:8px">
+            如果 OpenClaw 安装在非默认目录（如 <code>E:\\数据\\AI\\.openclaw</code>），可在此指定。留空则使用默认路径。
+          </p>
+          <div style="display:flex;gap:6px">
+            <input id="input-openclaw-dir" type="text" placeholder="例如 E:\\数据\\AI\\.openclaw"
+              style="flex:1;padding:4px 8px;border:1px solid var(--border-primary);border-radius:var(--radius-sm);background:var(--bg-secondary);color:var(--text-primary);font-size:11px;font-family:monospace">
+            <button class="btn btn-primary btn-sm" id="btn-save-openclaw-dir" style="font-size:11px;padding:3px 10px">保存</button>
+            <button class="btn btn-secondary btn-sm" id="btn-reset-openclaw-dir" style="font-size:11px;padding:3px 10px">恢复默认</button>
+          </div>
+          <div id="openclaw-dir-result" style="margin-top:6px;display:none"></div>
+        </div>
+      </details>
     </div>
   `
 
@@ -429,6 +446,62 @@ function bindEvents(page, nodeOk, detectState) {
     } finally {
       btn.disabled = false
       btn.textContent = '一键安装 Git'
+    }
+  })
+
+  // 自定义 OpenClaw 安装路径
+  const dirInput = page.querySelector('#input-openclaw-dir')
+  const dirResultEl = page.querySelector('#openclaw-dir-result')
+  // 预填当前自定义路径
+  if (dirInput) {
+    api.getOpenclawDir().then(info => {
+      if (info.isCustom) {
+        dirInput.value = info.path
+        // 已有自定义路径时自动展开
+        const details = page.querySelector('#custom-dir-details')
+        if (details) details.open = true
+      }
+    }).catch(() => {})
+  }
+
+  page.querySelector('#btn-save-openclaw-dir')?.addEventListener('click', async () => {
+    const value = dirInput?.value?.trim()
+    if (!value) { toast('请输入路径', 'warning'); return }
+    const btn = page.querySelector('#btn-save-openclaw-dir')
+    btn.disabled = true
+    if (dirResultEl) { dirResultEl.style.display = 'block'; dirResultEl.innerHTML = '<span style="color:var(--text-tertiary)">保存中...</span>' }
+    try {
+      const cfg = await api.readPanelConfig()
+      cfg.openclawDir = value
+      await api.writePanelConfig(cfg)
+      invalidate()
+      if (dirResultEl) dirResultEl.innerHTML = `<span style="color:var(--success)">✓ 路径已保存，正在重新检测...</span>`
+      toast('自定义路径已保存', 'success')
+      setTimeout(() => runDetect(page), 500)
+    } catch (e) {
+      if (dirResultEl) dirResultEl.innerHTML = `<span style="color:var(--error)">保存失败: ${e}</span>`
+      toast('保存失败: ' + e, 'error')
+    } finally {
+      btn.disabled = false
+    }
+  })
+
+  page.querySelector('#btn-reset-openclaw-dir')?.addEventListener('click', async () => {
+    const btn = page.querySelector('#btn-reset-openclaw-dir')
+    btn.disabled = true
+    try {
+      const cfg = await api.readPanelConfig()
+      delete cfg.openclawDir
+      await api.writePanelConfig(cfg)
+      invalidate()
+      if (dirInput) dirInput.value = ''
+      if (dirResultEl) { dirResultEl.style.display = 'block'; dirResultEl.innerHTML = `<span style="color:var(--success)">✓ 已恢复默认路径，正在重新检测...</span>` }
+      toast('已恢复默认路径', 'success')
+      setTimeout(() => runDetect(page), 500)
+    } catch (e) {
+      toast('恢复失败: ' + e, 'error')
+    } finally {
+      btn.disabled = false
     }
   })
 

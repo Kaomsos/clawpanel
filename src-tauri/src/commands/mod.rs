@@ -16,13 +16,32 @@ pub mod service;
 pub mod skills;
 pub mod update;
 
-/// 获取 OpenClaw 配置目录 (~/.openclaw/)
-pub fn openclaw_dir() -> PathBuf {
+/// 默认 OpenClaw 配置目录（ClawPanel 自身配置始终在此）
+fn default_openclaw_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_default().join(".openclaw")
 }
 
+/// 获取 OpenClaw 配置目录
+/// 优先使用 clawpanel.json 中的 openclawDir 自定义路径，不存在则回退默认 ~/.openclaw
+pub fn openclaw_dir() -> PathBuf {
+    // 直接读 clawpanel.json（始终在默认目录下），避免循环依赖
+    let config_path = default_openclaw_dir().join("clawpanel.json");
+    if let Ok(content) = std::fs::read_to_string(&config_path) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(custom) = v.get("openclawDir").and_then(|d| d.as_str()) {
+                let p = PathBuf::from(custom);
+                if !custom.is_empty() && p.exists() {
+                    return p;
+                }
+            }
+        }
+    }
+    default_openclaw_dir()
+}
+
 fn panel_config_path() -> PathBuf {
-    openclaw_dir().join("clawpanel.json")
+    // ClawPanel 自身配置始终在默认目录，不随 openclawDir 变化
+    default_openclaw_dir().join("clawpanel.json")
 }
 
 fn read_panel_config_value() -> Option<serde_json::Value> {
@@ -184,14 +203,15 @@ fn build_enhanced_path() -> String {
 
     #[cfg(target_os = "macos")]
     {
+        // 版本管理器路径优先于系统路径，确保 nvm/volta/fnm 管理的 Node.js 版本被优先检测到
         let mut extra: Vec<String> = vec![
-            "/usr/local/bin".into(),
-            "/opt/homebrew/bin".into(),
             format!("{}/.nvm/current/bin", home.display()),
             format!("{}/.volta/bin", home.display()),
             format!("{}/.nodenv/shims", home.display()),
             format!("{}/n/bin", home.display()),
             format!("{}/.npm-global/bin", home.display()),
+            "/usr/local/bin".into(),
+            "/opt/homebrew/bin".into(),
         ];
         // NPM_CONFIG_PREFIX: 用户通过 npm config set prefix 自定义的全局安装路径
         if let Ok(prefix) = std::env::var("NPM_CONFIG_PREFIX") {
@@ -238,16 +258,17 @@ fn build_enhanced_path() -> String {
 
     #[cfg(target_os = "linux")]
     {
+        // 版本管理器路径优先于系统路径，确保 nvm/volta/fnm 管理的 Node.js 版本被优先检测到
         let mut extra: Vec<String> = vec![
-            "/usr/local/bin".into(),
-            "/usr/bin".into(),
-            "/snap/bin".into(),
-            format!("{}/.local/bin", home.display()),
             format!("{}/.nvm/current/bin", home.display()),
             format!("{}/.volta/bin", home.display()),
             format!("{}/.nodenv/shims", home.display()),
             format!("{}/n/bin", home.display()),
             format!("{}/.npm-global/bin", home.display()),
+            format!("{}/.local/bin", home.display()),
+            "/usr/local/bin".into(),
+            "/usr/bin".into(),
+            "/snap/bin".into(),
         ];
         // NPM_CONFIG_PREFIX: 用户通过 npm config set prefix 自定义的全局安装路径
         if let Ok(prefix) = std::env::var("NPM_CONFIG_PREFIX") {
@@ -316,35 +337,17 @@ fn build_enhanced_path() -> String {
         let localappdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
         let appdata = std::env::var("APPDATA").unwrap_or_default();
 
-        let mut extra: Vec<String> = vec![format!(r"{}\nodejs", pf), format!(r"{}\nodejs", pf86)];
-        if !localappdata.is_empty() {
-            extra.push(format!(r"{}\Programs\nodejs", localappdata));
-            extra.push(format!(r"{}\fnm_multishells", localappdata));
-        }
-        if !appdata.is_empty() {
-            extra.push(format!(r"{}\npm", appdata));
-            extra.push(format!(r"{}\nvm", appdata));
-            // 扫描 nvm-windows 实际安装的版本目录
-            let nvm_dir = std::path::Path::new(&appdata).join("nvm");
-            if nvm_dir.is_dir() {
-                if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
-                    for entry in entries.flatten() {
-                        let p = entry.path();
-                        if p.is_dir() && p.join("node.exe").exists() {
-                            extra.push(p.to_string_lossy().to_string());
-                        }
-                    }
-                }
-            }
-        }
-        // NVM_SYMLINK 环境变量（nvm-windows 的活跃版本符号链接，如 D:\nodejs）
+        // 版本管理器路径优先，确保 nvm/volta/fnm 管理的 Node.js 被优先检测到
+        let mut extra: Vec<String> = vec![];
+
+        // 1. NVM_SYMLINK（nvm-windows 活跃版本符号链接，如 D:\nodejs）—— 最高优先级
         if let Ok(nvm_symlink) = std::env::var("NVM_SYMLINK") {
             let symlink_path = std::path::Path::new(&nvm_symlink);
             if symlink_path.is_dir() {
                 extra.push(nvm_symlink.clone());
             }
         }
-        // NVM_HOME 环境变量（用户可能自定义了 nvm 安装目录）
+        // 2. NVM_HOME（用户自定义 nvm 安装目录）
         if let Ok(nvm_home) = std::env::var("NVM_HOME") {
             let nvm_path = std::path::Path::new(&nvm_home);
             if nvm_path.is_dir() {
@@ -358,8 +361,27 @@ fn build_enhanced_path() -> String {
                 }
             }
         }
+        // 3. %APPDATA%\nvm（nvm-windows 默认安装目录）
+        if !appdata.is_empty() {
+            extra.push(format!(r"{}\nvm", appdata));
+            let nvm_dir = std::path::Path::new(&appdata).join("nvm");
+            if nvm_dir.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_dir() && p.join("node.exe").exists() {
+                            extra.push(p.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+        }
+        // 4. volta
         extra.push(format!(r"{}\.volta\bin", home.display()));
-        // fnm: 扫描 %FNM_DIR% 或默认 %APPDATA%\fnm 下的版本目录
+        // 5. fnm
+        if !localappdata.is_empty() {
+            extra.push(format!(r"{}\fnm_multishells", localappdata));
+        }
         let fnm_base = std::env::var("FNM_DIR")
             .ok()
             .map(std::path::PathBuf::from)
@@ -375,8 +397,17 @@ fn build_enhanced_path() -> String {
                 }
             }
         }
-
-        // 扫描常见盘符下的 Node 安装（用户可能装在 D:\、F:\ 等）
+        // 6. npm 全局（openclaw.cmd 通常在这里）
+        if !appdata.is_empty() {
+            extra.push(format!(r"{}\npm", appdata));
+        }
+        // 7. 系统默认 Node.js 安装路径（优先级最低）
+        extra.push(format!(r"{}\nodejs", pf));
+        extra.push(format!(r"{}\nodejs", pf86));
+        if !localappdata.is_empty() {
+            extra.push(format!(r"{}\Programs\nodejs", localappdata));
+        }
+        // 8. 扫描常见盘符下的 Node 安装（用户可能装在 D:\、F:\ 等）
         for drive in &["C", "D", "E", "F"] {
             extra.push(format!(r"{}:\nodejs", drive));
             extra.push(format!(r"{}:\Node", drive));

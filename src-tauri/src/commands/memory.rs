@@ -64,6 +64,8 @@ async fn agent_workspace(agent_id: &str) -> Result<PathBuf, String> {
         .and_then(|w| w.as_str())
         .map(PathBuf::from)
         .unwrap_or_else(|| super::openclaw_dir().join("workspace"));
+    // 解析符号链接
+    let default_workspace = fs::canonicalize(&default_workspace).unwrap_or(default_workspace);
 
     let mut new_map = HashMap::new();
     // main agent 使用默认 workspace
@@ -93,6 +95,8 @@ async fn agent_workspace(agent_id: &str) -> Result<PathBuf, String> {
                             .join("workspace")
                     }
                 });
+            // 解析符号链接，确保软连接的 workspace 也能正确访问
+            let ws = fs::canonicalize(&ws).unwrap_or(ws);
             new_map.insert(id.to_string(), ws);
         }
     }

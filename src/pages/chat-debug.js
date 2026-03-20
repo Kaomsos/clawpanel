@@ -6,23 +6,46 @@ import { api, getRequestLogs, clearRequestLogs } from '../lib/tauri-api.js'
 import { wsClient } from '../lib/ws-client.js'
 import { isOpenclawReady, isGatewayRunning } from '../lib/app-state.js'
 import { icon, statusIcon } from '../lib/icons.js'
+import { toast } from '../components/toast.js'
+import { navigate } from '../router.js'
 
 export async function render() {
   const page = document.createElement('div')
   page.className = 'page'
 
   page.innerHTML = `
-    <div class="page-header">
+    <div class="page-header" style="margin-bottom:var(--space-lg)">
       <h1 class="page-title">系统诊断</h1>
-      <p class="page-desc">全面检测系统状态，快速定位问题</p>
-      <div style="display:flex;gap:8px">
+      <p class="page-desc" style="margin-bottom:1em">全面检测系统状态，快速定位问题</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-primary btn-sm" id="btn-refresh">刷新状态</button>
+        <button class="btn btn-secondary btn-sm" id="btn-doctor-check">诊断配置</button>
+        <button class="btn btn-warning btn-sm" id="btn-doctor-fix">自动修复</button>
         <button class="btn btn-secondary btn-sm" id="btn-test-ws">测试 WebSocket</button>
         <button class="btn btn-secondary btn-sm" id="btn-network-log">网络日志</button>
-        <button class="btn btn-warning btn-sm" id="btn-fix-pairing">一键修复配对</button>
+        <button class="btn btn-secondary btn-sm" id="btn-fix-pairing">一键修复配对</button>
       </div>
     </div>
-    <div id="debug-content"></div>
+    <div id="debug-content">
+      <div class="config-section" style="border-left:3px solid var(--border)">
+        <div style="display:flex;gap:var(--space-sm);align-items:center">
+          <div class="loading-placeholder" style="width:24px;height:24px;border-radius:50%"></div>
+          <div class="loading-placeholder" style="width:120px;height:20px;border-radius:4px"></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--space-md)">
+        <div class="config-section"><div class="config-section-title" style="margin-bottom:8px">应用状态</div><div class="loading-placeholder" style="height:48px;border-radius:4px"></div></div>
+        <div class="config-section"><div class="config-section-title" style="margin-bottom:8px">WebSocket 连接</div><div class="loading-placeholder" style="height:48px;border-radius:4px"></div></div>
+        <div class="config-section"><div class="config-section-title" style="margin-bottom:8px">Node.js 环境</div><div class="loading-placeholder" style="height:48px;border-radius:4px"></div></div>
+        <div class="config-section"><div class="config-section-title" style="margin-bottom:8px">版本信息</div><div class="loading-placeholder" style="height:48px;border-radius:4px"></div></div>
+      </div>
+    </div>
+    <div id="doctor-output" style="display:none;margin-top:var(--space-md)">
+      <div class="config-section">
+        <div class="config-section-title">配置诊断输出</div>
+        <pre style="background:var(--bg-secondary);border-radius:var(--radius);padding:var(--space-sm);font-size:var(--font-size-xs);max-height:300px;overflow:auto;white-space:pre-wrap;word-break:break-all"></pre>
+      </div>
+    </div>
     <div id="ws-test-log" style="display:none;margin-top:16px;background:var(--bg-secondary);border-radius:6px;padding:12px">
       <div style="font-weight:600;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
         <span>WebSocket 连接测试</span>
@@ -46,6 +69,8 @@ export async function render() {
   page.querySelector('#btn-test-ws').addEventListener('click', () => testWebSocket(page))
   page.querySelector('#btn-network-log').addEventListener('click', () => toggleNetworkLog(page))
   page.querySelector('#btn-fix-pairing').addEventListener('click', () => fixPairing(page))
+  page.querySelector('#btn-doctor-check').addEventListener('click', () => handleDoctor(page, false))
+  page.querySelector('#btn-doctor-fix').addEventListener('click', () => handleDoctor(page, true))
   loadDebugInfo(page)
   return page
 }
@@ -259,6 +284,69 @@ function renderDebugInfo(el, info) {
   html += `</div>`
 
   el.innerHTML = html
+}
+
+// 配置诊断 / 自动修复（openclaw doctor）
+async function handleDoctor(page, fix) {
+  const btnCheck = page.querySelector('#btn-doctor-check')
+  const btnFix = page.querySelector('#btn-doctor-fix')
+  const outputDiv = page.querySelector('#doctor-output')
+  const section = outputDiv?.querySelector('.config-section')
+  const pre = outputDiv?.querySelector('pre')
+  if (!outputDiv || !pre) return
+
+  // 清除之前的提示
+  section?.querySelectorAll('.doctor-tip').forEach(el => el.remove())
+
+  if (btnCheck) btnCheck.disabled = true
+  if (btnFix) btnFix.disabled = true
+  if (fix && btnFix) btnFix.textContent = '修复中...'
+  if (!fix && btnCheck) btnCheck.textContent = '诊断中...'
+
+  outputDiv.style.display = 'block'
+  pre.textContent = fix ? '正在运行 openclaw doctor --fix ...' : '正在运行 openclaw doctor ...'
+  pre.style.color = 'var(--text-secondary)'
+
+  try {
+    const result = fix ? await api.doctorFix() : await api.doctorCheck()
+    let text = result.output || ''
+    if (result.errors) text += '\n' + result.errors
+    const fullText = text.trim()
+    pre.textContent = fullText || (result.success ? '✓ 未发现问题' : '诊断完成')
+    pre.style.color = result.success ? 'var(--success)' : 'var(--warning)'
+    if (fullText.includes('ERR_MODULE_NOT_FOUND') || fullText.includes('Cannot find module')) {
+      appendDoctorTip(section, 'OpenClaw 安装可能已损坏', '检测到模块文件缺失，建议前往 <a href="#" data-nav="about" style="color:var(--primary);text-decoration:underline;font-weight:500">关于页面</a> 切换版本或重新安装 OpenClaw CLI。')
+      toast('OpenClaw 安装损坏，建议前往「关于」页重新安装', 'warning')
+    } else if (fix && result.success) {
+      toast('配置修复完成', 'success')
+    } else if (fix) {
+      toast('修复完成，部分问题可能需手动处理', 'warning')
+    }
+  } catch (e) {
+    const errMsg = e?.message || String(e)
+    pre.textContent = '执行失败: ' + errMsg
+    pre.style.color = 'var(--error)'
+    if (errMsg.includes('ERR_MODULE_NOT_FOUND') || errMsg.includes('Cannot find module') || errMsg.includes('未找到')) {
+      appendDoctorTip(section, 'OpenClaw CLI 不可用', '请前往 <a href="#" data-nav="about" style="color:var(--primary);text-decoration:underline;font-weight:500">关于页面</a> 安装或重新安装 OpenClaw。')
+    }
+    toast('执行失败: ' + e, 'error')
+  } finally {
+    if (btnCheck) { btnCheck.disabled = false; btnCheck.textContent = '诊断配置' }
+    if (btnFix) { btnFix.disabled = false; btnFix.textContent = '自动修复' }
+  }
+}
+
+function appendDoctorTip(parent, title, body) {
+  if (!parent) return
+  const tip = document.createElement('div')
+  tip.className = 'doctor-tip'
+  tip.style.cssText = 'margin-top:var(--space-sm);padding:var(--space-sm);background:rgba(239,68,68,0.08);border-radius:var(--radius);font-size:var(--font-size-sm);color:var(--error);line-height:1.6'
+  tip.innerHTML = `<strong>⚠ ${title}</strong><br>${body}`
+  tip.querySelector('[data-nav="about"]')?.addEventListener('click', (e) => {
+    e.preventDefault()
+    navigate('/about')
+  })
+  parent.appendChild(tip)
 }
 
 function escapeHtml(str) {

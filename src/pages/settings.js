@@ -4,6 +4,7 @@
  */
 import { api } from '../lib/tauri-api.js'
 import { toast } from '../components/toast.js'
+import { showConfirm } from '../components/modal.js'
 
 const isTauri = !!window.__TAURI_INTERNALS__
 
@@ -42,6 +43,12 @@ export async function render() {
       <div class="config-section-title">npm 源设置</div>
       <div id="registry-bar"><div class="stat-card loading-placeholder" style="height:48px"></div></div>
     </div>
+
+    <div class="config-section" id="openclaw-dir-section">
+      <div class="config-section-title">OpenClaw 安装路径</div>
+      <div id="openclaw-dir-bar"><div class="stat-card loading-placeholder" style="height:48px"></div></div>
+    </div>
+
   `
 
   bindEvents(page)
@@ -50,7 +57,7 @@ export async function render() {
 }
 
 async function loadAll(page) {
-  const tasks = [loadProxyConfig(page), loadModelProxyConfig(page)]
+  const tasks = [loadProxyConfig(page), loadModelProxyConfig(page), loadOpenclawDir(page)]
   tasks.push(loadRegistry(page))
   await Promise.all(tasks)
 }
@@ -139,6 +146,72 @@ async function loadRegistry(page) {
   }
 }
 
+// ===== OpenClaw 安装路径 =====
+
+async function loadOpenclawDir(page) {
+  const bar = page.querySelector('#openclaw-dir-bar')
+  if (!bar) return
+  try {
+    const info = isTauri ? await api.getOpenclawDir() : { path: '~/.openclaw', isCustom: false, configExists: true }
+    const cfg = await api.readPanelConfig()
+    const customValue = cfg?.openclawDir || ''
+    const statusText = info.configExists
+      ? '<span style="color:var(--success)">配置文件存在</span>'
+      : '<span style="color:var(--warning)">配置文件不存在</span>'
+    bar.innerHTML = `
+      <div style="margin-bottom:var(--space-xs)">
+        <span class="form-hint">当前路径:</span>
+        <strong style="font-size:var(--font-size-sm)">${escapeHtml(info.path)}</strong>
+        <span style="margin-left:var(--space-xs);font-size:var(--font-size-xs)">${statusText}</span>
+        ${info.isCustom ? '<span class="clawhub-badge" style="margin-left:var(--space-xs);background:rgba(99,102,241,0.14);color:#6366f1;font-size:var(--font-size-xs)">自定义</span>' : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap">
+        <input class="form-input" data-name="openclaw-dir" placeholder="留空使用默认路径 ~/.openclaw" value="${escapeHtml(customValue)}" style="max-width:420px">
+        <button class="btn btn-primary btn-sm" data-action="save-openclaw-dir">保存</button>
+        ${info.isCustom ? '<button class="btn btn-secondary btn-sm" data-action="reset-openclaw-dir">恢复默认</button>' : ''}
+      </div>
+      <div class="form-hint" style="margin-top:var(--space-xs)">
+        自定义 OpenClaw 配置目录路径。修改后需要重启面板生效。目标目录必须存在且包含 <code>openclaw.json</code>。
+      </div>
+    `
+  } catch (e) {
+    bar.innerHTML = `<div style="color:var(--error)">加载失败: ${escapeHtml(String(e))}</div>`
+  }
+}
+
+async function handleSaveOpenclawDir(page) {
+  const input = page.querySelector('[data-name="openclaw-dir"]')
+  const value = (input?.value || '').trim()
+  const cfg = await api.readPanelConfig()
+  if (value) {
+    cfg.openclawDir = value
+  } else {
+    delete cfg.openclawDir
+  }
+  await api.writePanelConfig(cfg)
+  await loadOpenclawDir(page)
+  await promptRestart(value ? '自定义路径已保存' : '已恢复默认路径')
+}
+
+async function handleResetOpenclawDir(page) {
+  const cfg = await api.readPanelConfig()
+  delete cfg.openclawDir
+  await api.writePanelConfig(cfg)
+  await loadOpenclawDir(page)
+  await promptRestart('已恢复默认路径')
+}
+
+async function promptRestart(msg) {
+  if (!isTauri) { toast(msg, 'success'); return }
+  const ok = await showConfirm(`${msg}。\n\n需要重启面板才能生效，是否立即重启？`)
+  if (ok) {
+    toast('正在重启...', 'info')
+    try { await api.relaunchApp() } catch { toast('自动重启失败，请手动关闭后重新打开', 'warning') }
+  } else {
+    toast(`${msg}，下次启动时生效`, 'success')
+  }
+}
+
 // ===== 事件绑定 =====
 
 function bindEvents(page) {
@@ -164,6 +237,12 @@ function bindEvents(page) {
         case 'save-registry':
           await handleSaveRegistry(page)
           break
+        case 'save-openclaw-dir':
+          await handleSaveOpenclawDir(page)
+          break
+        case 'reset-openclaw-dir':
+          await handleResetOpenclawDir(page)
+          break
       }
     } catch (e) {
       toast(e.toString(), 'error')
@@ -171,6 +250,7 @@ function bindEvents(page) {
       btn.disabled = false
     }
   })
+
 }
 
 function normalizeProxyUrl(value) {

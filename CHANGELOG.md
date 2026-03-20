@@ -5,6 +5,32 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.9.7] - 2026-03-21
+
+### 新功能 (Features)
+
+- **Markdown 表格渲染** — 聊天消息中的 Markdown 表格以 HTML 表格形式展示，支持表头高亮、斑马纹、悬停效果 (#112)
+- **Doctor 一键诊断修复** — 新增 `openclaw doctor --fix` 和 `openclaw doctor` 后端命令，支持从面板内自动检测和修复配置问题 (#103)
+- **自定义 OpenClaw 安装路径** — 初始设置和服务管理页支持自定义 OpenClaw 配置目录（如 `E:\数据\AI\.openclaw`），解决非默认安装位置的检测问题
+- **关闭窗口最小化到托盘** — 关闭主窗口时最小化到系统托盘，不退出应用
+- **应用重启命令** — 设置变更后支持从面板内一键重启应用
+
+### 修复 (Fixes)
+
+- **Agent 创建失败兜底** — CLI 创建 Agent 超时或失败时，自动降级为直接写 openclaw.json，不再因 CLI 卡死导致创建失败
+- **模型 API 类型自动修复** — 保存时自动将错误的 API 类型（如 `google-gemini` → `google-generative-ai`）修正为上游支持的格式 (#97)
+- **SkillHub 安装状态竞态** — 搜索时先实时检测 SkillHub 安装状态，避免缓存误判导致误报"请先安装"
+- **聊天响应看门狗** — 发送消息后 15 秒无 delta 事件自动刷新历史，防止响应丢失时 UI 卡在等待状态
+- **Clippy 编译警告** — 修复 dead_code 和 manual_flatten 编译警告，代码更规范
+
+### 改进 (Improvements)
+
+- **模型配置可折叠** — 每个服务商区块支持折叠/展开，模型多时页面更清爽 (#98)
+- **PATH 检测优先级优化** — macOS/Linux/Windows 均调整为版本管理器路径（nvm/volta/fnm）优先于系统路径，减少环境检测误判
+- **聊天 typing 提示增强** — 等待回复时支持显示工具调用等状态提示文字
+- **官网内容更新** — 新增 apple-touch-icon、布局优化、图标资源重命名解决浏览器缓存问题
+- **贡献者致谢** — README 和 CONTRIBUTING.md 新增历史贡献者致谢名单及维护指南
+
 ## [0.9.6] - 2026-03-18
 
 ### 修复 (Fixes)

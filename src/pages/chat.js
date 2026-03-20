@@ -72,6 +72,7 @@ const _toolEventData = new Map()
 const _toolRunIndex = new Map()
 const _toolEventSeen = new Set()
 let _errorTimer = null, _lastErrorMsg = null
+let _responseWatchdog = null, _postFinalCheck = null
 let _attachments = []
 let _hasEverConnected = false
 let _availableModels = []
@@ -155,6 +156,7 @@ export async function render() {
       <div class="chat-messages" id="chat-messages">
         <div class="typing-indicator" id="typing-indicator" style="display:none">
           <span></span><span></span><span></span>
+          <span class="typing-hint"></span>
         </div>
       </div>
       <button class="chat-scroll-btn" id="chat-scroll-btn" style="display:none">↓</button>
@@ -1000,10 +1002,12 @@ async function doSend(text, attachments = []) {
   })
   showTyping(true)
   _isSending = true
+  _startResponseWatchdog()
   try {
     await wsClient.chatSend(_sessionKey, text, attachments.length ? attachments : undefined)
   } catch (err) {
     showTyping(false)
+    _cancelResponseWatchdog()
     appendSystemMessage('发送失败: ' + err.message)
   } finally {
     _isSending = false
@@ -1046,6 +1050,11 @@ function handleEvent(msg) {
       if (!list.includes(toolCallId)) list.push(toolCallId)
       _toolRunIndex.set(payload.runId, list)
     }
+    // 工具执行反馈：更新 typing 提示文字
+    const toolName = payload.data?.name || payload.data?.toolName || ''
+    if (toolName && !_isStreaming) {
+      showTyping(true, `正在使用工具: ${toolName}`)
+    }
   }
 
   if (event === 'chat') handleChatEvent(payload)
@@ -1079,6 +1088,7 @@ function handleChatEvent(payload) {
   }
 
   if (state === 'delta') {
+    _cancelResponseWatchdog()
     const c = extractChatContent(payload.message)
     if (c?.images?.length) _currentAiImages = c.images
     if (c?.videos?.length) _currentAiVideos = c.videos
@@ -1114,6 +1124,7 @@ function handleChatEvent(payload) {
   }
 
   if (state === 'final') {
+    _cancelResponseWatchdog()
     const c = extractChatContent(payload.message)
     const finalText = c?.text || ''
     const finalImages = c?.images || []
@@ -1205,6 +1216,7 @@ function handleChatEvent(payload) {
       }
     }
     resetStreamState()
+    _schedulePostFinalCheck()
     processMessageQueue()
     return
   }
@@ -1462,6 +1474,45 @@ function doRender() {
     _currentAiBubble.innerHTML = renderMarkdown(_currentAiText)
     scrollToBottom()
   }
+}
+
+// ── 响应看门狗：防止页面卡在等待状态 ──
+
+function _startResponseWatchdog() {
+  _cancelResponseWatchdog()
+  _responseWatchdog = setTimeout(async () => {
+    _responseWatchdog = null
+    // 如果还在等待（未开始流式），强制刷新历史
+    if (!_isStreaming && _sessionKey && _messagesEl && _pageActive) {
+      console.log('[chat] 响应看门狗触发：15s 无 delta，刷新历史')
+      const oldHash = _lastHistoryHash
+      _lastHistoryHash = ''
+      await loadHistory()
+      // 如果历史有更新，关闭 typing 指示器
+      if (_lastHistoryHash && _lastHistoryHash !== oldHash) {
+        showTyping(false)
+      } else {
+        // 历史没更新，继续等待，再设一轮看门狗
+        _startResponseWatchdog()
+      }
+    }
+  }, 15000)
+}
+
+function _cancelResponseWatchdog() {
+  clearTimeout(_responseWatchdog)
+  _responseWatchdog = null
+}
+
+function _schedulePostFinalCheck() {
+  clearTimeout(_postFinalCheck)
+  _postFinalCheck = setTimeout(async () => {
+    _postFinalCheck = null
+    if (_sessionKey && _messagesEl && _pageActive && !_isStreaming && !_isSending) {
+      _lastHistoryHash = ''
+      await loadHistory()
+    }
+  }, 2000)
 }
 
 // ensureAiBubble 已被 createStreamBubble 替代
@@ -1986,8 +2037,13 @@ function clearMessages() {
   _lastScrollTop = 0
 }
 
-function showTyping(show) {
-  if (_typingEl) _typingEl.style.display = show ? 'flex' : 'none'
+function showTyping(show, hint) {
+  if (_typingEl) {
+    _typingEl.style.display = show ? 'flex' : 'none'
+    // 更新提示文字（如工具调用状态）
+    const hintEl = _typingEl.querySelector('.typing-hint')
+    if (hintEl) hintEl.textContent = hint || ''
+  }
   if (show) scrollToBottom()
 }
 
@@ -2430,6 +2486,9 @@ export function cleanup() {
   if (_unsubReady) { _unsubReady(); _unsubReady = null }
   if (_unsubStatus) { _unsubStatus(); _unsubStatus = null }
   clearTimeout(_streamSafetyTimer)
+  _cancelResponseWatchdog()
+  clearTimeout(_postFinalCheck)
+  _postFinalCheck = null
   if (_hostedAbort) { _hostedAbort.abort(); _hostedAbort = null }
   _sessionKey = null
   _page = null

@@ -102,7 +102,7 @@ pub async fn list_agents() -> Result<Value, String> {
     Ok(Value::Array(enriched))
 }
 
-/// 创建新 agent（走 CLI，自动创建 workspace/sessions 等文件）
+/// 创建新 agent（优先走 CLI，失败则直接写 openclaw.json 兜底）
 #[tauri::command]
 pub async fn add_agent(
     name: String,
@@ -128,27 +128,103 @@ pub async fn add_agent(
 
     if !model.is_empty() {
         args.push("--model".to_string());
-        args.push(model);
+        args.push(model.clone());
     }
 
-    let output = openclaw_command_async()
-        .args(&args)
-        .output()
-        .await
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                "OpenClaw CLI 未找到，请确认已安装并重启 ClawPanel。".to_string()
-            } else {
-                format!("执行失败: {e}")
-            }
-        })?;
+    // 尝试 CLI（15s 超时），失败则直接写配置兜底
+    let cli_ok = match tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        openclaw_command_async().args(&args).output(),
+    )
+    .await
+    {
+        Ok(Ok(o)) if o.status.success() => true,
+        Ok(Ok(o)) => {
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            eprintln!(
+                "[agent] CLI 创建失败: {}",
+                stderr.chars().take(200).collect::<String>()
+            );
+            false
+        }
+        Ok(Err(e)) => {
+            eprintln!("[agent] CLI 执行错误: {e}");
+            false
+        }
+        Err(_) => {
+            eprintln!("[agent] CLI 超时 (15s)");
+            false
+        }
+    };
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("创建 Agent 失败: {stderr}"));
+    if !cli_ok {
+        // 兜底：直接写 openclaw.json
+        add_agent_to_config(&name, &model, &ws)?;
+    }
+
+    // 确保 workspace 目录存在
+    if !ws.exists() {
+        let _ = fs::create_dir_all(&ws);
     }
 
     list_agents().await
+}
+
+/// 直接写 openclaw.json 创建 agent（CLI 不可用时的兜底方案）
+fn add_agent_to_config(id: &str, model: &str, workspace: &std::path::Path) -> Result<(), String> {
+    let config_path = super::openclaw_dir().join("openclaw.json");
+    if !config_path.exists() {
+        return Err("openclaw.json 不存在，请先安装 OpenClaw".to_string());
+    }
+    let content = fs::read_to_string(&config_path).map_err(|e| format!("读取配置失败: {e}"))?;
+    let mut config: Value =
+        serde_json::from_str(&content).map_err(|e| format!("解析 JSON 失败: {e}"))?;
+
+    // 确保 agents.list 存在
+    if config.get("agents").is_none() {
+        config
+            .as_object_mut()
+            .ok_or("配置格式错误")?
+            .insert("agents".to_string(), serde_json::json!({}));
+    }
+    if config["agents"].get("list").is_none() {
+        config["agents"]
+            .as_object_mut()
+            .ok_or("agents 格式错误")?
+            .insert("list".to_string(), serde_json::json!([]));
+    }
+
+    let list = config["agents"]["list"]
+        .as_array_mut()
+        .ok_or("agents.list 格式错误")?;
+
+    // 检查是否已存在同名 agent
+    let exists = list
+        .iter()
+        .any(|a| a.get("id").and_then(|v| v.as_str()) == Some(id));
+    if exists {
+        return Err(format!("Agent「{id}」已存在"));
+    }
+
+    let mut agent = serde_json::json!({
+        "id": id,
+        "workspace": workspace.to_string_lossy(),
+    });
+    if !model.is_empty() {
+        agent
+            .as_object_mut()
+            .unwrap()
+            .insert("model".to_string(), serde_json::json!({ "primary": model }));
+    }
+    list.push(agent);
+
+    // 备份 + 写回
+    let bak = super::openclaw_dir().join("openclaw.json.bak");
+    let _ = fs::copy(&config_path, &bak);
+    let json = serde_json::to_string_pretty(&config).map_err(|e| format!("序列化失败: {e}"))?;
+    fs::write(&config_path, json).map_err(|e| format!("写入配置失败: {e}"))?;
+
+    Ok(())
 }
 
 /// 删除 agent（直接操作 openclaw.json + 删除 agent 目录，不走 CLI）

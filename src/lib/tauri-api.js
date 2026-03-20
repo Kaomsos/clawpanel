@@ -181,6 +181,8 @@ export const api = {
   writeMcpConfig: (config) => { invalidate('read_mcp_config'); return invoke('write_mcp_config', { config }) },
   reloadGateway: () => invoke('reload_gateway'),
   restartGateway: () => invoke('restart_gateway'),
+  doctorCheck: () => invoke('doctor_check'),
+  doctorFix: () => invoke('doctor_fix'),
   listOpenclawVersions: (source = 'chinese') => invoke('list_openclaw_versions', { source }),
   upgradeOpenclaw: (source = 'chinese', version = null, method = 'auto') => invoke('upgrade_openclaw', { source, version, method }),
   uninstallOpenclaw: (cleanConfig = false) => invoke('uninstall_openclaw', { cleanConfig }),
@@ -222,6 +224,8 @@ export const api = {
   installChannelPlugin: (packageName, pluginId) => invoke('install_channel_plugin', { packageName, pluginId }),
 
   // 面板配置 (clawpanel.json)
+  getOpenclawDir: () => invoke('get_openclaw_dir'),
+  relaunchApp: () => invoke('relaunch_app'),
   readPanelConfig: () => invoke('read_panel_config'),
   writePanelConfig: (config) => invoke('write_panel_config', { config }),
   testProxy: (url) => invoke('test_proxy', { url: url || null }),

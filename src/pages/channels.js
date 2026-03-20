@@ -371,7 +371,7 @@ async function openConfigDialog(pid, page, state) {
   // 飞书插件版本检测：根据已安装的插件自动选择
   if (pid === 'feishu' && !existing.pluginVersion) {
     try {
-      const officialStatus = await api.getChannelPluginStatus('feishu-openclaw-plugin')
+      const officialStatus = await api.getChannelPluginStatus('openclaw-lark') || await api.getChannelPluginStatus('feishu-openclaw-plugin')
       if (officialStatus?.installed) existing.pluginVersion = 'official'
       else existing.pluginVersion = localStorage.getItem('clawpanel-feishu-plugin-version') || 'builtin'
     } catch { existing.pluginVersion = 'builtin' }
@@ -597,8 +597,8 @@ async function openConfigDialog(pid, page, state) {
           const pluginVersion = pluginVersionField?.value || 'builtin'
           localStorage.setItem('clawpanel-feishu-plugin-version', pluginVersion)
           if (pluginVersion === 'official') {
-            pluginPackage = '@larksuiteoapi/feishu-openclaw-plugin'
-            pluginId = 'feishu-openclaw-plugin'
+            pluginPackage = 'openclaw-lark'
+            pluginId = 'openclaw-lark'
           }
         }
         const pluginStatus = await api.getChannelPluginStatus(pluginId)

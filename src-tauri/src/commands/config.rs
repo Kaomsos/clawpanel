@@ -2587,6 +2587,66 @@ pub async fn restart_gateway() -> Result<String, String> {
     reload_gateway().await
 }
 
+/// 运行 openclaw doctor --fix 自动修复配置问题
+#[tauri::command]
+pub async fn doctor_fix() -> Result<Value, String> {
+    use crate::utils::openclaw_command_async;
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        openclaw_command_async().args(["doctor", "--fix"]).output(),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(o)) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            let success = o.status.success();
+            Ok(json!({
+                "success": success,
+                "output": stdout.trim(),
+                "errors": stderr.trim(),
+                "exitCode": o.status.code(),
+            }))
+        }
+        Ok(Err(e)) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Err("OpenClaw CLI 未找到，请先安装".to_string())
+            } else {
+                Err(format!("执行 doctor 失败: {e}"))
+            }
+        }
+        Err(_) => Err("doctor --fix 执行超时 (30s)".to_string()),
+    }
+}
+
+/// 运行 openclaw doctor（仅诊断，不修复）
+#[tauri::command]
+pub async fn doctor_check() -> Result<Value, String> {
+    use crate::utils::openclaw_command_async;
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(20),
+        openclaw_command_async().args(["doctor"]).output(),
+    )
+    .await;
+
+    match result {
+        Ok(Ok(o)) => {
+            let stdout = String::from_utf8_lossy(&o.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&o.stderr).to_string();
+            Ok(json!({
+                "success": o.status.success(),
+                "output": stdout.trim(),
+                "errors": stderr.trim(),
+            }))
+        }
+        Ok(Err(e)) => Err(format!("执行 doctor 失败: {e}")),
+        Err(_) => Err("doctor 执行超时 (20s)".to_string()),
+    }
+}
+
 /// 清理 base URL：去掉尾部斜杠和已知端点路径，防止用户粘贴完整端点 URL 导致路径重复
 fn normalize_base_url(raw: &str) -> String {
     let mut base = raw.trim_end_matches('/').to_string();
@@ -3080,9 +3140,25 @@ pub async fn check_panel_update() -> Result<Value, String> {
 
 // === 面板配置 (clawpanel.json) ===
 
+/// 获取当前生效的 OpenClaw 配置目录路径
+#[tauri::command]
+pub fn get_openclaw_dir() -> Result<Value, String> {
+    let resolved = super::openclaw_dir();
+    let is_custom = super::read_panel_config_value()
+        .and_then(|v| v.get("openclawDir")?.as_str().map(String::from))
+        .map(|s| !s.is_empty())
+        .unwrap_or(false);
+    let config_exists = resolved.join("openclaw.json").exists();
+    Ok(json!({
+        "path": resolved.to_string_lossy(),
+        "isCustom": is_custom,
+        "configExists": config_exists,
+    }))
+}
+
 #[tauri::command]
 pub fn read_panel_config() -> Result<Value, String> {
-    let path = super::openclaw_dir().join("clawpanel.json");
+    let path = super::panel_config_path();
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
@@ -3092,13 +3168,27 @@ pub fn read_panel_config() -> Result<Value, String> {
 
 #[tauri::command]
 pub fn write_panel_config(config: Value) -> Result<(), String> {
-    let dir = super::openclaw_dir();
-    if !dir.exists() {
-        fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {e}"))?;
+    let path = super::panel_config_path();
+    if let Some(dir) = path.parent() {
+        if !dir.exists() {
+            fs::create_dir_all(dir).map_err(|e| format!("创建目录失败: {e}"))?;
+        }
     }
-    let path = dir.join("clawpanel.json");
     let json = serde_json::to_string_pretty(&config).map_err(|e| format!("序列化失败: {e}"))?;
     fs::write(&path, json).map_err(|e| format!("写入失败: {e}"))
+}
+
+/// 重启应用（用于设置变更后自动重启）
+#[tauri::command]
+pub async fn relaunch_app(app: tauri::AppHandle) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {e}"))?;
+    std::process::Command::new(&exe)
+        .spawn()
+        .map_err(|e| format!("重启失败: {e}"))?;
+    // 短暂延迟后退出当前进程
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    app.exit(0);
+    Ok(())
 }
 
 /// 测试代理连通性：通过配置的代理访问指定 URL，返回状态码和耗时

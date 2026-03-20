@@ -162,8 +162,14 @@ async function showAddAgentDialog(page, state) {
 
       try {
         await api.addAgent(id, model, workspace || null)
+        // 身份信息更新（非关键，失败不阻塞）
         if (name || emoji) {
-          await api.updateAgentIdentity(id, name || null, emoji || null)
+          try {
+            await api.updateAgentIdentity(id, name || null, emoji || null)
+          } catch (identityErr) {
+            console.warn('[Agent] 身份信息更新失败（Agent 已创建）:', identityErr)
+            toast('Agent 已创建，但名称设置失败，可稍后编辑', 'warning')
+          }
         }
         toast('Agent 已创建', 'success')
 

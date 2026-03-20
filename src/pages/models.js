@@ -200,6 +200,8 @@ function renderProviders(page, state) {
     return
   }
 
+  if (!state._collapsed) state._collapsed = {}
+
   listEl.innerHTML = keys.map(key => {
     const p = providers[key]
     const models = p.models || []
@@ -212,10 +214,12 @@ function renderProviders(page, state) {
       : models
     const sorted = sortModels(filtered, sortBy)
     const hiddenCount = models.length - sorted.length
+    const collapsed = !!state._collapsed[key]
+    const chevron = collapsed ? '▸' : '▾'
     return `
       <div class="config-section" data-provider="${key}">
         <div class="config-section-title" style="display:flex;justify-content:space-between;align-items:center">
-          <span>${key} <span style="font-size:var(--font-size-xs);color:var(--text-tertiary);font-weight:400">${getApiTypeLabel(p.api)} · ${models.length} 个模型</span></span>
+          <span style="cursor:pointer;user-select:none" data-action="toggle-provider"><span style="display:inline-block;width:16px;font-size:12px;color:var(--text-tertiary)">${chevron}</span>${key} <span style="font-size:var(--font-size-xs);color:var(--text-tertiary);font-weight:400">${getApiTypeLabel(p.api)} · ${models.length} 个模型</span></span>
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm btn-secondary" data-action="edit-provider">编辑</button>
             <button class="btn btn-sm btn-secondary" data-action="add-model">+ 模型</button>
@@ -223,6 +227,7 @@ function renderProviders(page, state) {
             <button class="btn btn-sm btn-danger" data-action="delete-provider">删除</button>
           </div>
         </div>
+        <div class="provider-body" style="${collapsed ? 'display:none' : ''}">
         ${models.length >= 2 ? `
         <div style="display:flex;gap:6px;margin-bottom:var(--space-sm);align-items:center">
           <button class="btn btn-sm btn-secondary" data-action="batch-test">批量测试</button>
@@ -245,6 +250,7 @@ function renderProviders(page, state) {
         <div class="provider-models">
           ${renderModelCards(key, sorted, primary, search)}
           ${hiddenCount > 0 ? `<div style="font-size:var(--font-size-xs);color:var(--text-tertiary);padding:4px 0">已隐藏 ${hiddenCount} 个不匹配的模型</div>` : ''}
+        </div>
         </div>
       </div>
     `
@@ -353,11 +359,33 @@ function autoSave(state) {
   _saveTimer = setTimeout(() => doAutoSave(state), 300)
 }
 
-/** 保存前规范化所有服务商的 baseUrl，确保 Gateway 能正确调用 */
+/** 已知的 API 类型错误→正确映射，自动修复用户手动编辑或旧版本配置 */
+const API_TYPE_FIXES = {
+  'google-gemini': 'google-generative-ai',
+  'gemini': 'google-generative-ai',
+  'google': 'google-generative-ai',
+  'anthropic': 'anthropic-messages',
+  'openai': 'openai-completions',
+  'openai-chat': 'openai-completions',
+}
+const VALID_API_TYPES = new Set(API_TYPES.map(t => t.value))
+
+/** 保存前规范化所有服务商的 baseUrl 和 API 类型，确保 Gateway 能正确调用 */
 function normalizeProviderUrls(config) {
   const providers = config?.models?.providers
   if (!providers) return
   for (const [, p] of Object.entries(providers)) {
+    // 修复 API 类型
+    if (p.api) {
+      const lower = p.api.toLowerCase().trim()
+      if (API_TYPE_FIXES[lower]) {
+        p.api = API_TYPE_FIXES[lower]
+      } else if (!VALID_API_TYPES.has(lower)) {
+        console.warn(`[models] 未知 API 类型「${p.api}」，自动修正为 openai-completions`)
+        p.api = 'openai-completions'
+      }
+    }
+
     if (!p.baseUrl) continue
     let url = p.baseUrl.replace(/\/+$/, '')
     // 去掉尾部的已知端点路径（用户可能粘贴了完整 URL）
@@ -368,7 +396,7 @@ function normalizeProviderUrls(config) {
     const apiType = (p.api || 'openai-completions').toLowerCase()
     if (apiType === 'anthropic-messages') {
       if (!url.endsWith('/v1')) url += '/v1'
-    } else if (apiType !== 'google-gemini') {
+    } else if (apiType !== 'google-generative-ai') {
       // Ollama 端口检测：11434 默认需要加 /v1
       if (/:11434$/.test(url) && !url.endsWith('/v1')) url += '/v1'
       // 不再强制追加 /v1，尊重用户填写的 URL（火山引擎等第三方用 /v3 等路径）
@@ -552,6 +580,17 @@ function bindProviderButtons(listEl, page, state) {
       dragged = null
       placeholder = null
     })
+  })
+
+  // 折叠/展开服务商
+  listEl.querySelectorAll('[data-action="toggle-provider"]').forEach(span => {
+    span.onclick = () => {
+      const section = span.closest('[data-provider]')
+      if (!section) return
+      const key = section.dataset.provider
+      state._collapsed[key] = !state._collapsed[key]
+      renderProviders(page, state)
+    }
   })
 
   // 绑定按钮
