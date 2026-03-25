@@ -599,12 +599,62 @@ function showGuardianRecovery() {
     <div class="gw-banner-content" style="flex-wrap:wrap;gap:8px">
       <span class="gw-banner-icon">${statusIcon('warn', 16)}</span>
       <span>Gateway 反复启动失败，可能配置有误</span>
-      <button class="btn btn-sm btn-secondary" id="btn-gw-recover-restart" style="margin-left:auto">重试启动</button>
-      <button class="btn btn-sm btn-secondary" id="btn-gw-recover-backup">从备份恢复</button>
-      <a class="btn btn-sm btn-ghost" href="#/services">服务管理</a>
+      <button class="btn btn-sm btn-primary" id="btn-gw-recover-fix" style="margin-left:auto">一键修复</button>
+      <button class="btn btn-sm btn-secondary" id="btn-gw-recover-restart">重试启动</button>
       <a class="btn btn-sm btn-ghost" href="#/logs">查看日志</a>
     </div>
   `
+  banner.querySelector('#btn-gw-recover-fix')?.addEventListener('click', async (e) => {
+    const btn = e.target
+    btn.disabled = true
+    btn.textContent = '修复中...'
+    // 弹出修复弹窗
+    const overlay = document.createElement('div')
+    overlay.className = 'modal-overlay'
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:560px">
+        <div class="modal-title">🔧 自动修复</div>
+        <div style="font-size:var(--font-size-sm);color:var(--text-secondary);margin-bottom:12px">
+          正在执行 <code>openclaw doctor --fix</code>，自动检测并修复常见配置问题...
+        </div>
+        <div id="fix-log" style="font-family:var(--font-mono);font-size:11px;background:var(--bg-tertiary);padding:12px;border-radius:var(--radius-md);max-height:300px;overflow-y:auto;white-space:pre-wrap;line-height:1.6;color:var(--text-secondary)">⏳ 执行中...\n</div>
+        <div id="fix-status" style="margin-top:12px;font-size:var(--font-size-sm);font-weight:600"></div>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn btn-secondary btn-sm" id="fix-close" style="display:none">关闭</button>
+        </div>
+      </div>
+    `
+    document.body.appendChild(overlay)
+    const logEl = overlay.querySelector('#fix-log')
+    const statusEl = overlay.querySelector('#fix-status')
+    const closeBtn = overlay.querySelector('#fix-close')
+    closeBtn.onclick = () => overlay.remove()
+
+    try {
+      const result = await api.doctorFix()
+      const output = result?.stdout || result?.output || JSON.stringify(result, null, 2)
+      logEl.textContent = output || '✅ 修复完成（无输出）'
+      logEl.scrollTop = logEl.scrollHeight
+      if (result?.errors) {
+        statusEl.innerHTML = `<span style="color:var(--warning)">⚠ 修复完成，但有警告：${escapeHtml(String(result.errors).slice(0, 200))}</span>`
+      } else {
+        statusEl.innerHTML = '<span style="color:var(--success)">✅ 修复完成，正在重启 Gateway...</span>'
+        resetAutoRestart()
+        try {
+          await api.startService('ai.openclaw.gateway')
+          statusEl.innerHTML = '<span style="color:var(--success)">✅ 修复完成，Gateway 已重启</span>'
+        } catch {
+          statusEl.innerHTML = '<span style="color:var(--warning)">✅ 修复完成，但 Gateway 启动失败，请手动检查</span>'
+        }
+      }
+    } catch (err) {
+      logEl.textContent += '\n❌ ' + (err.message || String(err))
+      statusEl.innerHTML = `<span style="color:var(--error)">❌ 修复失败：${escapeHtml(String(err.message || err).slice(0, 200))}</span>`
+    }
+    closeBtn.style.display = ''
+    btn.textContent = '一键修复'
+    btn.disabled = false
+  })
   banner.querySelector('#btn-gw-recover-restart')?.addEventListener('click', async (e) => {
     const btn = e.target
     btn.disabled = true
@@ -617,9 +667,6 @@ function showGuardianRecovery() {
       btn.textContent = '启动失败'
       btn.disabled = false
     }
-  })
-  banner.querySelector('#btn-gw-recover-backup')?.addEventListener('click', () => {
-    navigate('/services')
   })
 }
 
