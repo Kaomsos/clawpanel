@@ -639,10 +639,14 @@ function renderCompany(page) {
       <div style="font-size:var(--font-size-xs);color:var(--text-tertiary);line-height:1.6">
         ${t('about.companyDesc')}
       </div>
-      ${getLang() === 'zh-CN' ? `<div style="margin-top:8px;padding:10px 12px;border-radius:var(--radius-md);border:1px dashed var(--border-primary);background:var(--bg-secondary);font-size:var(--font-size-xs);color:var(--text-tertiary);display:flex;align-items:center;gap:8px">
-        <span style="opacity:0.6">☕</span>
-        <span>请作者喝杯咖啡 (BNB Chain)</span>
-        <code style="font-size:10px;background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;user-select:all;word-break:break-all">0xbdd7ebdf2b30d873e556799711021c6671ffe88f</code>
+      ${getLang() !== 'en' ? `<div style="margin-top:12px;padding:12px 14px;border-radius:var(--radius-md);border:1px dashed var(--border-primary);background:var(--bg-secondary);font-size:var(--font-size-xs);color:var(--text-tertiary)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="/images/bnbqr.jpg" alt="QR" width="60" height="60" style="border-radius:4px;flex-shrink:0;background:#fff;padding:2px" loading="lazy">
+          <div style="min-width:0">
+            <div style="font-weight:600;color:var(--text-secondary);margin-bottom:4px">${t('about.sponsorProject') || '赞助项目'} <span style="opacity:0.5">(BNB Smart Chain)</span></div>
+            <code style="font-size:10px;background:var(--bg-tertiary);padding:2px 6px;border-radius:4px;user-select:all;word-break:break-all;display:block;line-height:1.6">0xbdd7ebdf2b30d873e556799711021c6671ffe88f</code>
+          </div>
+        </div>
       </div>` : ''}
     </div>
   `
