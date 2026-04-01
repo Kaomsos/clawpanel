@@ -48,6 +48,19 @@ export async function render() {
       <div id="config-editor-status" style="font-size:var(--font-size-xs);margin-bottom:6px;min-height:18px"></div>
       <textarea id="config-editor-area" class="form-input" style="font-family:var(--font-mono);font-size:12px;min-height:320px;resize:vertical;tab-size:2;white-space:pre;overflow-x:auto" spellcheck="false" disabled></textarea>
     </div>
+    <div class="config-section" id="config-calibration-section">
+      <div class="config-section-title">${t('services.configCalibration')}</div>
+      <div class="form-hint" style="margin-bottom:var(--space-sm)">${t('services.configCalibrationHint')}</div>
+      <div style="display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-sm)">
+        <button class="btn btn-primary btn-sm" data-action="calibrate-config-inherit">${t('services.calibrateInherit')}</button>
+        <button class="btn btn-secondary btn-sm" data-action="calibrate-config-reset">${t('services.calibrateReset')}</button>
+      </div>
+      <div style="display:grid;gap:8px;margin-bottom:var(--space-sm)">
+        <div class="setup-inline-note">${t('services.calibrateInheritHint')}</div>
+        <div class="setup-inline-note">${t('services.calibrateResetHint')}</div>
+      </div>
+      <div id="config-calibration-status" style="font-size:var(--font-size-xs);min-height:18px;color:var(--text-tertiary)"></div>
+    </div>
     <div class="config-section" id="backup-section">
       <div class="config-section-title">${t('services.configBackup')}</div>
       <div class="form-hint" style="margin-bottom:var(--space-sm)">${t('services.configBackupHint')}</div>
@@ -561,6 +574,12 @@ function bindEvents(page) {
         case 'reload-config':
           await loadConfigEditor(page)
           break
+        case 'calibrate-config-inherit':
+          await handleCalibrateConfig(page, 'inherit')
+          break
+        case 'calibrate-config-reset':
+          await handleCalibrateConfig(page, 'reset')
+          break
         case 'create-backup':
           await handleCreateBackup(page)
           break
@@ -738,6 +757,40 @@ async function handleDeleteBackup(name, page) {
   await api.deleteBackup(name)
   toast(t('services.backupDeleted'), 'success')
   await loadBackups(page)
+}
+
+function calibrationSourceLabel(source) {
+  if (source === 'backup') return t('services.calibrationSourceBackup')
+  if (source === 'current') return t('services.calibrationSourceCurrent')
+  return t('services.calibrationSourceEmpty')
+}
+
+async function handleCalibrateConfig(page, mode) {
+  const yes = await showConfirm(mode === 'reset'
+    ? t('services.calibrateResetConfirm')
+    : t('services.calibrateInheritConfirm'))
+  if (!yes) return
+
+  const status = page.querySelector('#config-calibration-status')
+  if (status) status.innerHTML = `<span style="color:var(--text-tertiary)">${t('services.calibrating')}</span>`
+
+  const result = await api.calibrateOpenclawConfig(mode)
+  const summary = t('services.calibrationSummary', {
+    mode: mode === 'reset' ? t('services.calibrateReset') : t('services.calibrateInherit'),
+    source: calibrationSourceLabel(result?.source),
+    count: String(result?.inheritedKeys?.length || 0),
+  })
+  const warnings = Array.isArray(result?.warnings) ? result.warnings.filter(Boolean) : []
+
+  if (status) status.innerHTML = `<span style="color:var(--success)">${escapeHtml(summary)}</span>${warnings.length ? `<br><span style="color:var(--warning)">${escapeHtml(warnings.join('；'))}</span>` : ''}`
+  toast(t('services.calibrationDone') + ' · ' + summary, 'success')
+  if (warnings.length) toast(warnings.join('；'), 'warning')
+
+  await Promise.all([
+    loadConfigEditor(page),
+    loadBackups(page),
+    loadServices(page),
+  ])
 }
 
 // ===== 配置文件编辑器 =====

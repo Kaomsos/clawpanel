@@ -605,6 +605,541 @@ pub fn write_openclaw_config(config: Value) -> Result<(), String> {
     Ok(())
 }
 
+const CALIBRATION_RESET_INHERIT_KEYS: &[&str] = &[
+    "agents",
+    "auth",
+    "bindings",
+    "browser",
+    "channels",
+    "commands",
+    "env",
+    "hooks",
+    "models",
+    "plugins",
+    "session",
+    "skills",
+    "wizard",
+];
+
+fn calibration_required_origins() -> Vec<String> {
+    vec![
+        "tauri://localhost".into(),
+        "https://tauri.localhost".into(),
+        "http://tauri.localhost".into(),
+        "http://localhost".into(),
+        "http://localhost:1420".into(),
+        "http://127.0.0.1:1420".into(),
+        "http://localhost:18777".into(),
+        "http://127.0.0.1:18777".into(),
+    ]
+}
+
+fn calibration_last_touched_version() -> String {
+    recommended_version_for("chinese").unwrap_or_else(|| "2026.1.1".to_string())
+}
+
+fn calibration_default_workspace() -> String {
+    super::openclaw_dir()
+        .join("workspace")
+        .to_string_lossy()
+        .to_string()
+}
+
+fn generate_calibration_token() -> String {
+    format!(
+        "cp-{:016x}{:016x}",
+        rand::random::<u64>(),
+        rand::random::<u64>()
+    )
+}
+
+fn decode_json_bytes(raw: &[u8]) -> String {
+    if raw.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        String::from_utf8_lossy(&raw[3..]).into_owned()
+    } else {
+        String::from_utf8_lossy(raw).into_owned()
+    }
+}
+
+fn parse_json_relaxed(content: &str) -> Option<Value> {
+    serde_json::from_str(content)
+        .ok()
+        .or_else(|| serde_json::from_str(&fix_common_json_errors(content)).ok())
+}
+
+fn read_json_file_relaxed(path: &PathBuf) -> Option<Value> {
+    let raw = fs::read(path).ok()?;
+    let content = decode_json_bytes(&raw);
+    parse_json_relaxed(&content)
+}
+
+fn calibration_has_usable_gateway_auth(auth: &Value) -> bool {
+    let mode = auth.get("mode").and_then(|v| v.as_str()).unwrap_or("");
+    match mode {
+        "token" => auth
+            .get("token")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false),
+        "password" => auth
+            .get("password")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn calibration_richness_score(config: &Value) -> usize {
+    let mut score = 0;
+    if config
+        .pointer("/models/providers")
+        .and_then(|v| v.as_object())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 4;
+    }
+    if config
+        .pointer("/auth/profiles")
+        .and_then(|v| v.as_object())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 3;
+    }
+    if config.pointer("/agents/defaults").is_some() {
+        score += 2;
+    }
+    if config
+        .pointer("/agents/list")
+        .and_then(|v| v.as_array())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 3;
+    }
+    if config
+        .get("channels")
+        .and_then(|v| v.as_object())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 2;
+    }
+    if config
+        .get("bindings")
+        .and_then(|v| v.as_array())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 2;
+    }
+    if config
+        .pointer("/plugins/entries")
+        .and_then(|v| v.as_object())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+        || config
+            .pointer("/plugins/installs")
+            .and_then(|v| v.as_object())
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+    {
+        score += 2;
+    }
+    if config
+        .get("env")
+        .and_then(|v| v.as_object())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 1;
+    }
+    if config
+        .pointer("/gateway/auth")
+        .map(calibration_has_usable_gateway_auth)
+        .unwrap_or(false)
+    {
+        score += 3;
+    }
+    if config
+        .pointer("/gateway/controlUi/allowedOrigins")
+        .and_then(|v| v.as_array())
+        .map(|v| !v.is_empty())
+        .unwrap_or(false)
+    {
+        score += 1;
+    }
+    score
+}
+
+fn select_calibration_source(current: Option<Value>, backup: Option<Value>) -> (String, Value) {
+    match (current, backup) {
+        (Some(current), Some(backup)) => {
+            let current_score = calibration_richness_score(&current);
+            let backup_score = calibration_richness_score(&backup);
+            if backup_score > current_score {
+                ("backup".into(), backup)
+            } else {
+                ("current".into(), current)
+            }
+        }
+        (Some(current), None) => ("current".into(), current),
+        (None, Some(backup)) => ("backup".into(), backup),
+        (None, None) => ("empty".into(), json!({})),
+    }
+}
+
+fn build_calibration_baseline() -> Value {
+    json!({
+        "$schema": "https://openclaw.ai/schema/config.json",
+        "meta": {
+            "lastTouchedVersion": calibration_last_touched_version(),
+        },
+        "models": { "providers": {} },
+        "auth": { "profiles": {} },
+        "agents": {
+            "defaults": {
+                "workspace": calibration_default_workspace(),
+            },
+            "list": [],
+        },
+        "bindings": [],
+        "channels": {},
+        "commands": {
+            "native": "auto",
+            "nativeSkills": "auto",
+            "ownerDisplay": "raw",
+            "restart": true,
+        },
+        "plugins": {},
+        "session": { "dmScope": "per-channel-peer" },
+        "skills": { "entries": {} },
+        "tools": {
+            "profile": "full",
+            "sessions": { "visibility": "all" },
+        },
+        "gateway": {
+            "mode": "local",
+            "bind": "loopback",
+            "port": 18789,
+            "auth": {
+                "mode": "token",
+                "token": generate_calibration_token(),
+            },
+            "controlUi": {
+                "enabled": true,
+                "allowedOrigins": calibration_required_origins(),
+                "allowInsecureAuth": true,
+            },
+        },
+    })
+}
+
+fn apply_reset_inheritance(mut config: Value, seed: &Value) -> (Value, Vec<String>) {
+    let mut inherited = Vec::new();
+    let Some(root) = config.as_object_mut() else {
+        return (config, inherited);
+    };
+
+    for key in CALIBRATION_RESET_INHERIT_KEYS {
+        if let Some(value) = seed.get(*key) {
+            root.insert((*key).to_string(), value.clone());
+            inherited.push((*key).to_string());
+        }
+    }
+
+    if let Some(web) = seed.pointer("/tools/web").cloned() {
+        let tools = root.entry("tools").or_insert_with(|| json!({}));
+        if !tools.is_object() {
+            *tools = json!({});
+        }
+        if let Some(tools_obj) = tools.as_object_mut() {
+            tools_obj.insert("web".into(), web);
+            inherited.push("tools.web".into());
+        }
+    }
+
+    (config, inherited)
+}
+
+fn normalize_calibrated_config(mut config: Value) -> Value {
+    let required_origins = calibration_required_origins();
+    let last_touched_version = calibration_last_touched_version();
+    let default_workspace = calibration_default_workspace();
+
+    let Some(root) = config.as_object_mut() else {
+        return build_calibration_baseline();
+    };
+
+    root.insert(
+        "$schema".into(),
+        Value::String("https://openclaw.ai/schema/config.json".into()),
+    );
+
+    let meta = root.entry("meta").or_insert_with(|| json!({}));
+    if !meta.is_object() {
+        *meta = json!({});
+    }
+    if let Some(meta_obj) = meta.as_object_mut() {
+        meta_obj.insert(
+            "lastTouchedVersion".into(),
+            Value::String(last_touched_version),
+        );
+        meta_obj.insert(
+            "lastTouchedAt".into(),
+            Value::String(chrono::Utc::now().to_rfc3339()),
+        );
+    }
+
+    let models = root.entry("models").or_insert_with(|| json!({}));
+    if !models.is_object() {
+        *models = json!({});
+    }
+    if let Some(models_obj) = models.as_object_mut() {
+        let providers = models_obj.entry("providers").or_insert_with(|| json!({}));
+        if !providers.is_object() {
+            *providers = json!({});
+        }
+    }
+
+    let auth = root.entry("auth").or_insert_with(|| json!({}));
+    if !auth.is_object() {
+        *auth = json!({});
+    }
+    if let Some(auth_obj) = auth.as_object_mut() {
+        let profiles = auth_obj.entry("profiles").or_insert_with(|| json!({}));
+        if !profiles.is_object() {
+            *profiles = json!({});
+        }
+    }
+
+    let agents = root.entry("agents").or_insert_with(|| json!({}));
+    if !agents.is_object() {
+        *agents = json!({});
+    }
+    if let Some(agents_obj) = agents.as_object_mut() {
+        let defaults = agents_obj.entry("defaults").or_insert_with(|| json!({}));
+        if !defaults.is_object() {
+            *defaults = json!({});
+        }
+        if let Some(defaults_obj) = defaults.as_object_mut() {
+            if defaults_obj
+                .get("workspace")
+                .and_then(|v| v.as_str())
+                .map(|v| !v.trim().is_empty())
+                .unwrap_or(false)
+                == false
+            {
+                defaults_obj.insert("workspace".into(), Value::String(default_workspace));
+            }
+        }
+        let list = agents_obj.entry("list").or_insert_with(|| json!([]));
+        if !list.is_array() {
+            *list = json!([]);
+        }
+    }
+
+    let bindings = root.entry("bindings").or_insert_with(|| json!([]));
+    if !bindings.is_array() {
+        *bindings = json!([]);
+    }
+
+    let channels = root.entry("channels").or_insert_with(|| json!({}));
+    if !channels.is_object() {
+        *channels = json!({});
+    }
+
+    let plugins = root.entry("plugins").or_insert_with(|| json!({}));
+    if !plugins.is_object() {
+        *plugins = json!({});
+    }
+
+    let tools = root.entry("tools").or_insert_with(|| json!({}));
+    if !tools.is_object() {
+        *tools = json!({});
+    }
+    if let Some(tools_obj) = tools.as_object_mut() {
+        if tools_obj
+            .get("profile")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+            == false
+        {
+            tools_obj.insert("profile".into(), Value::String("full".into()));
+        }
+        let sessions = tools_obj
+            .entry("sessions")
+            .or_insert_with(|| json!({}));
+        if !sessions.is_object() {
+            *sessions = json!({});
+        }
+        if let Some(sessions_obj) = sessions.as_object_mut() {
+            if sessions_obj
+                .get("visibility")
+                .and_then(|v| v.as_str())
+                .map(|v| !v.trim().is_empty())
+                .unwrap_or(false)
+                == false
+            {
+                sessions_obj.insert("visibility".into(), Value::String("all".into()));
+            }
+        }
+    }
+
+    let gateway = root.entry("gateway").or_insert_with(|| json!({}));
+    if !gateway.is_object() {
+        *gateway = json!({});
+    }
+    if let Some(gateway_obj) = gateway.as_object_mut() {
+        if gateway_obj
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+            == false
+        {
+            gateway_obj.insert("mode".into(), Value::String("local".into()));
+        }
+
+        let port_valid = gateway_obj
+            .get("port")
+            .and_then(|v| v.as_u64())
+            .map(|port| (1..=65535).contains(&port))
+            .unwrap_or(false);
+        if !port_valid {
+            gateway_obj.insert("port".into(), json!(18789));
+        }
+
+        if gateway_obj
+            .get("bind")
+            .and_then(|v| v.as_str())
+            .map(|v| !v.trim().is_empty())
+            .unwrap_or(false)
+            == false
+        {
+            gateway_obj.insert("bind".into(), Value::String("loopback".into()));
+        }
+
+        let auth_valid = gateway_obj
+            .get("auth")
+            .map(calibration_has_usable_gateway_auth)
+            .unwrap_or(false);
+        if !auth_valid {
+            gateway_obj.insert(
+                "auth".into(),
+                json!({
+                    "mode": "token",
+                    "token": generate_calibration_token(),
+                }),
+            );
+        }
+
+        let control_ui = gateway_obj
+            .entry("controlUi")
+            .or_insert_with(|| json!({}));
+        if !control_ui.is_object() {
+            *control_ui = json!({});
+        }
+        if let Some(control_ui_obj) = control_ui.as_object_mut() {
+            let existing: Vec<String> = control_ui_obj
+                .get("allowedOrigins")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|value| value.as_str().map(|value| value.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let mut merged = existing;
+            for origin in required_origins {
+                if !merged.iter().any(|existing| existing == &origin) {
+                    merged.push(origin);
+                }
+            }
+            control_ui_obj.insert("allowedOrigins".into(), json!(merged));
+            control_ui_obj.insert("enabled".into(), Value::Bool(true));
+            control_ui_obj.insert("allowInsecureAuth".into(), Value::Bool(true));
+        }
+    }
+
+    config
+}
+
+#[tauri::command]
+pub fn calibrate_openclaw_config(mode: String) -> Result<Value, String> {
+    let normalized_mode = match mode.trim() {
+        "inherit" => "inherit",
+        "reset" | "reinitialize" => "reset",
+        _ => return Err("mode 必须是 inherit 或 reset".into()),
+    };
+
+    let dir = super::openclaw_dir();
+    let config_path = dir.join("openclaw.json");
+    let backup_path = dir.join("openclaw.json.bak");
+    fs::create_dir_all(&dir).map_err(|e| format!("创建配置目录失败: {e}"))?;
+
+    let mut warnings: Vec<String> = vec![];
+    let pre_backup = if config_path.exists() {
+        match create_backup() {
+            Ok(result) => result
+                .get("name")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string()),
+            Err(err) => {
+                warnings.push(format!("修复前备份失败: {err}"));
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let current = read_json_file_relaxed(&config_path);
+    let backup = read_json_file_relaxed(&backup_path);
+    let (source, seed) = select_calibration_source(current, backup);
+
+    let (calibrated, mut inherited_keys) = if normalized_mode == "inherit" {
+        let inherited = seed
+            .as_object()
+            .map(|obj| obj.keys().cloned().collect())
+            .unwrap_or_else(Vec::new);
+        (
+            merge_configs_preserving_fields(&build_calibration_baseline(), &seed),
+            inherited,
+        )
+    } else {
+        apply_reset_inheritance(build_calibration_baseline(), &seed)
+    };
+
+    inherited_keys.sort();
+    inherited_keys.dedup();
+
+    let calibrated = strip_ui_fields(normalize_calibrated_config(calibrated));
+    let json =
+        serde_json::to_string_pretty(&calibrated).map_err(|e| format!("序列化校准配置失败: {e}"))?;
+
+    fs::write(&config_path, &json).map_err(|e| format!("写入校准配置失败: {e}"))?;
+    fs::write(&backup_path, &json).map_err(|e| format!("写入配置备份失败: {e}"))?;
+
+    sync_providers_to_agent_models(&calibrated);
+
+    Ok(json!({
+        "mode": normalized_mode,
+        "source": source,
+        "backup": pre_backup,
+        "inheritedKeys": inherited_keys,
+        "warnings": warnings,
+        "message": if normalized_mode == "inherit" {
+            "配置已按继承模式校准"
+        } else {
+            "配置已按完全初始化修复模式校准"
+        }
+    }))
+}
+
 /// 合并两个配置对象，保留现有配置中的合法字段
 ///
 /// Issue #127: 修复配置合并时丢失 browser.* 等合法字段的问题
@@ -3218,6 +3753,7 @@ async fn uninstall_openclaw_inner(
 pub fn init_openclaw_config() -> Result<Value, String> {
     let dir = super::openclaw_dir();
     let config_path = dir.join("openclaw.json");
+    let backup_path = dir.join("openclaw.json.bak");
     let mut result = serde_json::Map::new();
 
     if config_path.exists() {
@@ -3231,26 +3767,31 @@ pub fn init_openclaw_config() -> Result<Value, String> {
         std::fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {e}"))?;
     }
 
-    let last_touched_version =
-        recommended_version_for("chinese").unwrap_or_else(|| "2026.1.1".to_string());
-    let default_config = serde_json::json!({
-        "$schema": "https://openclaw.ai/schema/config.json",
-        "meta": { "lastTouchedVersion": last_touched_version },
-        "models": { "providers": {} },
-        "gateway": {
-            "mode": "local",
-            "port": 18789,
-            "auth": { "mode": "none" },
-            "controlUi": { "allowedOrigins": ["*"], "allowInsecureAuth": true }
-        },
-        "tools": { "profile": "full", "sessions": { "visibility": "all" } }
-    });
+    if backup_path.exists() {
+        let backup_content =
+            std::fs::read_to_string(&backup_path).map_err(|e| format!("读取配置备份失败: {e}"))?;
+        serde_json::from_str::<Value>(&backup_content)
+            .map_err(|e| format!("配置备份损坏，无法恢复: {e}"))?;
+        std::fs::write(&config_path, backup_content)
+            .map_err(|e| format!("恢复配置备份失败: {e}"))?;
+
+        result.insert("created".into(), Value::Bool(false));
+        result.insert("restored".into(), Value::Bool(true));
+        result.insert(
+            "message".into(),
+            Value::String("已从 openclaw.json.bak 恢复配置文件".into()),
+        );
+        return Ok(Value::Object(result));
+    }
+
+    let default_config = strip_ui_fields(normalize_calibrated_config(build_calibration_baseline()));
 
     let content =
         serde_json::to_string_pretty(&default_config).map_err(|e| format!("序列化失败: {e}"))?;
     std::fs::write(&config_path, content).map_err(|e| format!("写入失败: {e}"))?;
 
     result.insert("created".into(), Value::Bool(true));
+    result.insert("restored".into(), Value::Bool(false));
     result.insert("message".into(), Value::String("配置文件已创建".into()));
     Ok(Value::Object(result))
 }

@@ -1213,6 +1213,263 @@ function getLocalIps() {
   return ips
 }
 
+const CALIBRATION_RESET_INHERIT_KEYS = [
+  'agents',
+  'auth',
+  'bindings',
+  'browser',
+  'channels',
+  'commands',
+  'env',
+  'hooks',
+  'models',
+  'plugins',
+  'session',
+  'skills',
+  'wizard',
+]
+
+function requiredControlUiOrigins() {
+  const origins = [
+    'tauri://localhost',
+    'https://tauri.localhost',
+    'http://tauri.localhost',
+    'http://localhost',
+    'http://localhost:1420',
+    'http://127.0.0.1:1420',
+    'http://localhost:18777',
+    'http://127.0.0.1:18777',
+  ]
+  for (const ip of getLocalIps()) {
+    origins.push(`http://${ip}:1420`)
+    origins.push(`http://${ip}:18777`)
+  }
+  return [...new Set(origins)]
+}
+
+function calibrationLastTouchedVersion() {
+  return recommendedVersionFor('chinese') || '2026.1.1'
+}
+
+function calibrationDefaultWorkspace() {
+  return path.join(OPENCLAW_DIR, 'workspace')
+}
+
+function generateCalibrationToken() {
+  return `cp-${crypto.randomBytes(16).toString('hex')}`
+}
+
+function decodeJsonFileContent(filePath) {
+  const raw = fs.readFileSync(filePath)
+  if (raw.length >= 3 && raw[0] === 0xEF && raw[1] === 0xBB && raw[2] === 0xBF) {
+    return raw.subarray(3).toString('utf8')
+  }
+  return raw.toString('utf8')
+}
+
+function readJsonFileRelaxed(filePath) {
+  if (!fs.existsSync(filePath)) return null
+  try {
+    return JSON.parse(decodeJsonFileContent(filePath))
+  } catch {
+    return null
+  }
+}
+
+function calibrationHasUsableGatewayAuth(auth) {
+  const mode = auth?.mode
+  if (mode === 'token') return !!String(auth?.token || '').trim()
+  if (mode === 'password') return !!String(auth?.password || '').trim()
+  return false
+}
+
+function calibrationRichnessScore(config) {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return 0
+  let score = 0
+  if (config.models?.providers && Object.keys(config.models.providers).length) score += 4
+  if (config.auth?.profiles && Object.keys(config.auth.profiles).length) score += 3
+  if (config.agents?.defaults) score += 2
+  if (Array.isArray(config.agents?.list) && config.agents.list.length) score += 3
+  if (config.channels && Object.keys(config.channels).length) score += 2
+  if (Array.isArray(config.bindings) && config.bindings.length) score += 2
+  if (config.plugins?.entries && Object.keys(config.plugins.entries).length) score += 2
+  if (config.plugins?.installs && Object.keys(config.plugins.installs).length) score += 2
+  if (config.env && Object.keys(config.env).length) score += 1
+  if (calibrationHasUsableGatewayAuth(config.gateway?.auth)) score += 3
+  if (Array.isArray(config.gateway?.controlUi?.allowedOrigins) && config.gateway.controlUi.allowedOrigins.length) score += 1
+  return score
+}
+
+function selectCalibrationSource(current, backup) {
+  if (current && backup) {
+    return calibrationRichnessScore(backup) > calibrationRichnessScore(current)
+      ? ['backup', backup]
+      : ['current', current]
+  }
+  if (current) return ['current', current]
+  if (backup) return ['backup', backup]
+  return ['empty', {}]
+}
+
+function buildCalibrationBaseline() {
+  return {
+    $schema: 'https://openclaw.ai/schema/config.json',
+    meta: { lastTouchedVersion: calibrationLastTouchedVersion() },
+    models: { providers: {} },
+    auth: { profiles: {} },
+    agents: {
+      defaults: { workspace: calibrationDefaultWorkspace() },
+      list: [],
+    },
+    bindings: [],
+    channels: {},
+    commands: {
+      native: 'auto',
+      nativeSkills: 'auto',
+      ownerDisplay: 'raw',
+      restart: true,
+    },
+    plugins: {},
+    session: { dmScope: 'per-channel-peer' },
+    skills: { entries: {} },
+    tools: {
+      profile: 'full',
+      sessions: { visibility: 'all' },
+    },
+    gateway: {
+      mode: 'local',
+      bind: 'loopback',
+      port: 18789,
+      auth: {
+        mode: 'token',
+        token: generateCalibrationToken(),
+      },
+      controlUi: {
+        enabled: true,
+        allowedOrigins: requiredControlUiOrigins(),
+        allowInsecureAuth: true,
+      },
+    },
+  }
+}
+
+function applyResetInheritance(baseConfig, seed) {
+  const config = { ...baseConfig }
+  const inheritedKeys = []
+  if (!seed || typeof seed !== 'object' || Array.isArray(seed)) return [config, inheritedKeys]
+  for (const key of CALIBRATION_RESET_INHERIT_KEYS) {
+    if (key in seed) {
+      config[key] = seed[key]
+      inheritedKeys.push(key)
+    }
+  }
+  if (seed.tools?.web) {
+    config.tools = config.tools && typeof config.tools === 'object' && !Array.isArray(config.tools) ? config.tools : {}
+    config.tools.web = seed.tools.web
+    inheritedKeys.push('tools.web')
+  }
+  return [config, inheritedKeys]
+}
+
+function normalizeCalibratedConfig(input) {
+  const config = input && typeof input === 'object' && !Array.isArray(input) ? input : buildCalibrationBaseline()
+  const origins = requiredControlUiOrigins()
+  config.$schema = 'https://openclaw.ai/schema/config.json'
+  config.meta = config.meta && typeof config.meta === 'object' && !Array.isArray(config.meta) ? config.meta : {}
+  config.meta.lastTouchedVersion = calibrationLastTouchedVersion()
+  config.meta.lastTouchedAt = new Date().toISOString()
+
+  config.models = config.models && typeof config.models === 'object' && !Array.isArray(config.models) ? config.models : {}
+  config.models.providers = config.models.providers && typeof config.models.providers === 'object' && !Array.isArray(config.models.providers) ? config.models.providers : {}
+
+  config.auth = config.auth && typeof config.auth === 'object' && !Array.isArray(config.auth) ? config.auth : {}
+  config.auth.profiles = config.auth.profiles && typeof config.auth.profiles === 'object' && !Array.isArray(config.auth.profiles) ? config.auth.profiles : {}
+
+  config.agents = config.agents && typeof config.agents === 'object' && !Array.isArray(config.agents) ? config.agents : {}
+  config.agents.defaults = config.agents.defaults && typeof config.agents.defaults === 'object' && !Array.isArray(config.agents.defaults) ? config.agents.defaults : {}
+  if (!String(config.agents.defaults.workspace || '').trim()) config.agents.defaults.workspace = calibrationDefaultWorkspace()
+  if (!Array.isArray(config.agents.list)) config.agents.list = []
+
+  if (!Array.isArray(config.bindings)) config.bindings = []
+  config.channels = config.channels && typeof config.channels === 'object' && !Array.isArray(config.channels) ? config.channels : {}
+  config.commands = config.commands && typeof config.commands === 'object' && !Array.isArray(config.commands) ? config.commands : {}
+  if (!String(config.commands.native || '').trim()) config.commands.native = 'auto'
+  if (!String(config.commands.nativeSkills || '').trim()) config.commands.nativeSkills = 'auto'
+  if (!String(config.commands.ownerDisplay || '').trim()) config.commands.ownerDisplay = 'raw'
+  if (typeof config.commands.restart !== 'boolean') config.commands.restart = true
+  config.plugins = config.plugins && typeof config.plugins === 'object' && !Array.isArray(config.plugins) ? config.plugins : {}
+  config.session = config.session && typeof config.session === 'object' && !Array.isArray(config.session) ? config.session : {}
+  if (!String(config.session.dmScope || '').trim()) config.session.dmScope = 'per-channel-peer'
+  config.skills = config.skills && typeof config.skills === 'object' && !Array.isArray(config.skills) ? config.skills : {}
+  config.skills.entries = config.skills.entries && typeof config.skills.entries === 'object' && !Array.isArray(config.skills.entries) ? config.skills.entries : {}
+
+  config.tools = config.tools && typeof config.tools === 'object' && !Array.isArray(config.tools) ? config.tools : {}
+  if (!String(config.tools.profile || '').trim()) config.tools.profile = 'full'
+  config.tools.sessions = config.tools.sessions && typeof config.tools.sessions === 'object' && !Array.isArray(config.tools.sessions) ? config.tools.sessions : {}
+  if (!String(config.tools.sessions.visibility || '').trim()) config.tools.sessions.visibility = 'all'
+
+  config.gateway = config.gateway && typeof config.gateway === 'object' && !Array.isArray(config.gateway) ? config.gateway : {}
+  if (!String(config.gateway.mode || '').trim()) config.gateway.mode = 'local'
+  const port = Number(config.gateway.port)
+  config.gateway.port = Number.isInteger(port) && port >= 1 && port <= 65535 ? port : 18789
+  if (!String(config.gateway.bind || '').trim()) config.gateway.bind = 'loopback'
+  if (!calibrationHasUsableGatewayAuth(config.gateway.auth)) {
+    config.gateway.auth = {
+      mode: 'token',
+      token: generateCalibrationToken(),
+    }
+  }
+  config.gateway.controlUi = config.gateway.controlUi && typeof config.gateway.controlUi === 'object' && !Array.isArray(config.gateway.controlUi) ? config.gateway.controlUi : {}
+  const existingOrigins = Array.isArray(config.gateway.controlUi.allowedOrigins) ? config.gateway.controlUi.allowedOrigins.filter(Boolean) : []
+  config.gateway.controlUi.allowedOrigins = [...new Set([...existingOrigins, ...origins])]
+  config.gateway.controlUi.enabled = true
+  config.gateway.controlUi.allowInsecureAuth = true
+
+  return config
+}
+
+function calibrateOpenclawConfig(mode = 'inherit') {
+  const normalizedMode = mode === 'reinitialize' ? 'reset' : String(mode || 'inherit').trim()
+  if (normalizedMode !== 'inherit' && normalizedMode !== 'reset') {
+    throw new Error('mode 必须是 inherit 或 reset')
+  }
+  if (!fs.existsSync(OPENCLAW_DIR)) fs.mkdirSync(OPENCLAW_DIR, { recursive: true })
+  const warnings = []
+  let preBackup = null
+  if (fs.existsSync(CONFIG_PATH)) {
+    try {
+      preBackup = handlers.create_backup().name || null
+    } catch (error) {
+      warnings.push(`修复前备份失败: ${error?.message || error}`)
+    }
+  }
+  const current = readJsonFileRelaxed(CONFIG_PATH)
+  const backup = readJsonFileRelaxed(CONFIG_PATH + '.bak')
+  const [source, seed] = selectCalibrationSource(current, backup)
+
+  let calibrated
+  let inheritedKeys
+  if (normalizedMode === 'inherit') {
+    inheritedKeys = seed && typeof seed === 'object' && !Array.isArray(seed) ? Object.keys(seed) : []
+    calibrated = mergeConfigsPreservingFields(buildCalibrationBaseline(), seed || {})
+  } else {
+    ;[calibrated, inheritedKeys] = applyResetInheritance(buildCalibrationBaseline(), seed || {})
+  }
+  inheritedKeys = [...new Set(inheritedKeys)].sort()
+  calibrated = stripUiFields(normalizeCalibratedConfig(calibrated))
+  const serialized = JSON.stringify(calibrated, null, 2)
+  fs.writeFileSync(CONFIG_PATH, serialized)
+  fs.writeFileSync(CONFIG_PATH + '.bak', serialized)
+  return {
+    mode: normalizedMode,
+    source,
+    backup: preBackup,
+    inheritedKeys,
+    warnings,
+    message: normalizedMode === 'inherit' ? '配置已按继承模式校准' : '配置已按完全初始化修复模式校准',
+  }
+}
+
 // === Raw WebSocket（支持 Origin header，绕过 Gateway origin 检查）===
 function rawWsConnect(host, port, wsPath) {
   return new Promise((ok, no) => {
@@ -1228,6 +1485,7 @@ function rawWsConnect(host, port, wsPath) {
     req.end()
   })
 }
+
 function wsReadFrame(socket, timeout = 8000) {
   return new Promise((ok, no) => {
     let settled = false
@@ -1260,6 +1518,7 @@ function wsReadFrame(socket, timeout = 8000) {
     socket.on('close', () => onClose(new Error('ws closed')))
   })
 }
+
 function wsSendFrame(socket, text) {
   const p = Buffer.from(text, 'utf8'), mask = crypto.randomBytes(4)
   let h
@@ -1268,7 +1527,7 @@ function wsSendFrame(socket, text) {
   const m = Buffer.alloc(p.length); for (let i = 0; i < p.length; i++) m[i] = p[i] ^ mask[i % 4]
   socket.write(Buffer.concat([h, mask, m]))
 }
-// 持续读取 WS 帧，每条消息调用 onMessage，支持超时和取消
+
 function wsReadLoop(socket, onMessage, timeoutMs = DOCKER_TASK_TIMEOUT_MS) {
   let buf = Buffer.alloc(0), done = false
   const timer = setTimeout(() => { done = true; socket.destroy() }, timeoutMs)
@@ -1303,16 +1562,7 @@ function wsReadLoop(socket, onMessage, timeoutMs = DOCKER_TASK_TIMEOUT_MS) {
 function patchGatewayOrigins() {
   if (!fs.existsSync(CONFIG_PATH)) return false
   const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
-  const origins = [
-    'tauri://localhost',
-    'https://tauri.localhost',
-    'http://localhost',
-    'http://localhost:1420',
-    'http://127.0.0.1:1420',
-  ]
-  for (const ip of getLocalIps()) {
-    origins.push(`http://${ip}:1420`)
-  }
+  const origins = requiredControlUiOrigins()
   const existing = config?.gateway?.controlUi?.allowedOrigins || []
   // 合并：保留用户已有的 origins，只追加 ClawPanel 需要的
   const merged = [...new Set([...existing, ...origins])]
@@ -1388,6 +1638,71 @@ function resolveAgentWorkspace(config, id) {
   const workspace = expandHomePath(agent?.workspace || null)
   if (workspace) return workspace
   return id === 'main' ? resolveDefaultWorkspace(config) : path.join(resolveAgentDir(config, id), 'workspace')
+}
+
+const WORKSPACE_TEXT_EXTENSIONS = new Set([
+  'md', 'markdown', 'mdx', 'txt', 'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf',
+  'log', 'csv', 'env', 'gitignore', 'gitattributes', 'editorconfig', 'js', 'mjs', 'cjs', 'ts',
+  'tsx', 'jsx', 'html', 'htm', 'css', 'scss', 'less', 'rs', 'py', 'sh', 'bash', 'zsh', 'fish',
+  'ps1', 'bat', 'cmd', 'sql', 'xml', 'java', 'kt', 'go', 'rb', 'php', 'c', 'cc', 'cpp', 'h',
+  'hpp', 'vue', 'svelte', 'lock', 'sample'
+])
+
+const WORKSPACE_TEXT_BASENAMES = new Set([
+  'dockerfile',
+  'makefile',
+  'readme',
+  'license',
+  '.env',
+  '.env.local',
+  '.env.example',
+  '.gitignore',
+  '.gitattributes',
+  '.editorconfig',
+  '.npmrc'
+])
+
+const WORKSPACE_PREVIEW_EXTENSIONS = new Set(['md', 'markdown', 'mdx'])
+const MAX_WORKSPACE_FILE_SIZE = 1024 * 1024
+
+function normalizeWorkspaceRelativePath(raw) {
+  const trimmed = String(raw || '').trim()
+  if (!trimmed) return ''
+  if (path.isAbsolute(trimmed)) throw new Error('不允许使用绝对路径')
+  const normalized = path.normalize(trimmed).replace(/\\/g, '/')
+  if (normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
+    throw new Error('不允许访问工作区外部路径')
+  }
+  return normalized.split('/').filter(part => part && part !== '.').join('/')
+}
+
+function resolveAgentWorkspaceChild(config, id, relativePath = '') {
+  const root = resolveAgentWorkspace(config, id)
+  const normalized = normalizeWorkspaceRelativePath(relativePath)
+  return {
+    root,
+    relativePath: normalized,
+    fullPath: normalized ? path.join(root, normalized) : root,
+  }
+}
+
+function isWorkspaceTextFile(filePath) {
+  const base = path.basename(filePath).toLowerCase()
+  const ext = path.extname(base).replace(/^\./, '')
+  return WORKSPACE_TEXT_EXTENSIONS.has(ext) || WORKSPACE_TEXT_BASENAMES.has(base)
+}
+
+function isWorkspacePreviewableFile(filePath) {
+  const ext = path.extname(filePath).replace(/^\./, '').toLowerCase()
+  return WORKSPACE_PREVIEW_EXTENSIONS.has(ext)
+}
+
+function looksBinaryBuffer(buffer) {
+  return buffer.subarray(0, Math.min(buffer.length, 512)).includes(0)
+}
+
+function toWorkspaceRelativePath(root, fullPath) {
+  return path.relative(root, fullPath).split(path.sep).join('/')
 }
 
 function resolveMemoryDir(config, agentId, category) {
@@ -2378,6 +2693,10 @@ const handlers = {
     if (!fs.existsSync(CONFIG_PATH)) throw new Error('openclaw.json 不存在，请先安装 OpenClaw')
     const content = fs.readFileSync(CONFIG_PATH, 'utf8')
     return JSON.parse(content)
+  },
+
+  calibrate_openclaw_config({ mode } = {}) {
+    return calibrateOpenclawConfig(mode)
   },
 
   write_openclaw_config({ config }) {
@@ -4189,7 +4508,7 @@ const handlers = {
   list_agent_files({ id }) {
     if (!id) throw new Error('Agent ID 不能为空')
     const cfg = readOpenclawConfigOptional()
-    const agentDir = resolveAgentDir(cfg, id)
+    const workspaceDir = resolveAgentWorkspace(cfg, id)
 
     // Bootstrap 文件列表
     const BOOTSTRAP_FILES = [
@@ -4204,7 +4523,7 @@ const handlers = {
     ]
 
     return BOOTSTRAP_FILES.map(f => {
-      const filePath = path.join(agentDir, f.name)
+      const filePath = path.join(workspaceDir, f.name)
       const exists = fs.existsSync(filePath)
       let size = 0, mtime = null
       if (exists) {
@@ -4227,9 +4546,9 @@ const handlers = {
     if (!ALLOWED.includes(name)) throw new Error('不允许读取此文件')
 
     const cfg = readOpenclawConfigOptional()
-    const agentDir = resolveAgentDir(cfg, id)
+    const workspaceDir = resolveAgentWorkspace(cfg, id)
 
-    const filePath = path.join(agentDir, name)
+    const filePath = path.join(workspaceDir, name)
     if (!fs.existsSync(filePath)) return { exists: false, content: '' }
     return { exists: true, content: fs.readFileSync(filePath, 'utf8') }
   },
@@ -4243,12 +4562,88 @@ const handlers = {
     if (typeof content !== 'string') throw new Error('内容必须是字符串')
 
     const cfg = readOpenclawConfigOptional()
-    const agentDir = resolveAgentDir(cfg, id)
+    const workspaceDir = resolveAgentWorkspace(cfg, id)
 
     // 确保目录存在
-    if (!fs.existsSync(agentDir)) fs.mkdirSync(agentDir, { recursive: true })
-    fs.writeFileSync(path.join(agentDir, name), content, 'utf8')
+    if (!fs.existsSync(workspaceDir)) fs.mkdirSync(workspaceDir, { recursive: true })
+    fs.writeFileSync(path.join(workspaceDir, name), content, 'utf8')
     return { ok: true }
+  },
+
+  get_agent_workspace_info({ id }) {
+    if (!id) throw new Error('Agent ID 不能为空')
+    const cfg = readOpenclawConfigOptional()
+    const workspaceDir = resolveAgentWorkspace(cfg, id)
+    return {
+      agentId: id,
+      workspacePath: workspaceDir,
+      exists: fs.existsSync(workspaceDir),
+      isDefault: id === 'main',
+    }
+  },
+
+  list_agent_workspace_entries({ id, relativePath }) {
+    if (!id) throw new Error('Agent ID 不能为空')
+    const cfg = readOpenclawConfigOptional()
+    const { root, fullPath } = resolveAgentWorkspaceChild(cfg, id, relativePath || '')
+    if (!fs.existsSync(root)) return []
+    if (!fs.existsSync(fullPath)) throw new Error('目录不存在')
+    const stat = fs.statSync(fullPath)
+    if (!stat.isDirectory()) throw new Error('目标不是目录')
+
+    return fs.readdirSync(fullPath, { withFileTypes: true })
+      .map(entry => {
+        const absPath = path.join(fullPath, entry.name)
+        const meta = fs.statSync(absPath)
+        const isDir = meta.isDirectory()
+        return {
+          name: entry.name,
+          relativePath: toWorkspaceRelativePath(root, absPath),
+          type: isDir ? 'dir' : 'file',
+          size: isDir ? 0 : meta.size,
+          mtime: meta.mtime?.toISOString?.() || null,
+          editable: !isDir && isWorkspaceTextFile(absPath),
+          previewable: !isDir && isWorkspacePreviewableFile(absPath),
+        }
+      })
+      .sort((a, b) => {
+        const rankA = a.type === 'dir' ? 0 : 1
+        const rankB = b.type === 'dir' ? 0 : 1
+        return rankA - rankB || a.name.localeCompare(b.name)
+      })
+  },
+
+  read_agent_workspace_file({ id, relativePath }) {
+    if (!id) throw new Error('Agent ID 不能为空')
+    const cfg = readOpenclawConfigOptional()
+    const { relativePath: normalized, fullPath } = resolveAgentWorkspaceChild(cfg, id, relativePath || '')
+    if (!normalized) throw new Error('文件路径不能为空')
+    if (!fs.existsSync(fullPath)) throw new Error('文件不存在')
+    const stat = fs.statSync(fullPath)
+    if (!stat.isFile()) throw new Error('目标不是文件')
+    if (stat.size > MAX_WORKSPACE_FILE_SIZE) throw new Error('文件过大，暂不支持在面板中打开')
+    const buffer = fs.readFileSync(fullPath)
+    if (looksBinaryBuffer(buffer)) throw new Error('暂不支持在面板中打开二进制文件')
+    return {
+      relativePath: normalized,
+      path: fullPath,
+      size: stat.size,
+      mtime: stat.mtime?.toISOString?.() || null,
+      editable: true,
+      previewable: isWorkspacePreviewableFile(fullPath),
+      content: buffer.toString('utf8'),
+    }
+  },
+
+  write_agent_workspace_file({ id, relativePath, content }) {
+    if (!id) throw new Error('Agent ID 不能为空')
+    if (typeof content !== 'string') throw new Error('内容必须是字符串')
+    const cfg = readOpenclawConfigOptional()
+    const { relativePath: normalized, fullPath } = resolveAgentWorkspaceChild(cfg, id, relativePath || '')
+    if (!normalized) throw new Error('文件路径不能为空')
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true })
+    fs.writeFileSync(fullPath, content, 'utf8')
+    return { ok: true, relativePath: normalized, size: Buffer.byteLength(content, 'utf8') }
   },
 
   // 更新 Agent 概览配置（写入 openclaw.json agents.list[]）
@@ -4611,21 +5006,16 @@ const handlers = {
   init_openclaw_config() {
     if (fs.existsSync(CONFIG_PATH)) return { created: false, message: '配置文件已存在' }
     if (!fs.existsSync(OPENCLAW_DIR)) fs.mkdirSync(OPENCLAW_DIR, { recursive: true })
-    const lastTouchedVersion = recommendedVersionFor('chinese') || '2026.1.1'
-    const defaultConfig = {
-      "$schema": "https://openclaw.ai/schema/config.json",
-      meta: { lastTouchedVersion },
-      models: { providers: {} },
-      gateway: {
-        mode: "local",
-        port: 18789,
-        auth: { mode: "none" },
-        controlUi: { allowedOrigins: ["*"], allowInsecureAuth: true }
-      },
-      tools: { profile: "full", sessions: { visibility: "all" } }
+    const backupPath = CONFIG_PATH + '.bak'
+    if (fs.existsSync(backupPath)) {
+      const backupContent = fs.readFileSync(backupPath, 'utf8')
+      JSON.parse(backupContent)
+      fs.writeFileSync(CONFIG_PATH, backupContent)
+      return { created: false, restored: true, message: '已从 openclaw.json.bak 恢复配置文件' }
     }
+    const defaultConfig = stripUiFields(normalizeCalibratedConfig(buildCalibrationBaseline()))
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
-    return { created: true, message: '配置文件已创建' }
+    return { created: true, restored: false, message: '配置文件已创建' }
   },
 
   get_deploy_config() {

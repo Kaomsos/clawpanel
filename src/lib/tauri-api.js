@@ -187,6 +187,7 @@ export const api = {
   getVersionInfo: () => cachedInvoke('get_version_info', {}, 30000),
   getStatusSummary: () => cachedInvoke('get_status_summary', {}, 60000),
   readOpenclawConfig: () => cachedInvoke('read_openclaw_config'),
+  calibrateOpenclawConfig: (mode = 'inherit') => { invalidate('read_openclaw_config', 'check_installation', 'list_backups', 'get_services_status', 'get_status_summary'); return invoke('calibrate_openclaw_config', { mode }).then(r => { _debouncedReloadGateway(); return r }) },
   writeOpenclawConfig: (config) => { invalidate('read_openclaw_config'); return invoke('write_openclaw_config', { config }).then(r => { _debouncedReloadGateway(); return r }) },
   readMcpConfig: () => cachedInvoke('read_mcp_config'),
   writeMcpConfig: (config) => { invalidate('read_mcp_config'); return invoke('write_mcp_config', { config }) },
@@ -210,6 +211,13 @@ export const api = {
   listAgentFiles: (id) => cachedInvoke('list_agent_files', { id }, 5000),
   readAgentFile: (id, name) => invoke('read_agent_file', { id, name }),
   writeAgentFile: (id, name, content) => { invalidate('list_agent_files', 'read_agent_file'); return invoke('write_agent_file', { id, name, content }) },
+  getAgentWorkspaceInfo: (id) => cachedInvoke('get_agent_workspace_info', { id }, 5000),
+  listAgentWorkspaceEntries: (id, relativePath) => cachedInvoke('list_agent_workspace_entries', { id, relativePath: relativePath || null }, 5000),
+  readAgentWorkspaceFile: (id, relativePath) => cachedInvoke('read_agent_workspace_file', { id, relativePath }, 5000),
+  writeAgentWorkspaceFile: (id, relativePath, content) => {
+    invalidate('get_agent_workspace_info', 'list_agent_workspace_entries', 'read_agent_workspace_file', 'list_agent_files', 'read_agent_file')
+    return invoke('write_agent_workspace_file', { id, relativePath, content })
+  },
   updateAgentConfig: (id, config) => { invalidate('list_agents', 'get_agent_detail'); return invoke('update_agent_config', { id, config }) },
   addAgent: (name, model, workspace) => { invalidate('list_agents'); return invoke('add_agent', { name, model, workspace: workspace || null }) },
   deleteAgent: (id) => { invalidate('list_agents', 'get_agent_detail'); return invoke('delete_agent', { id }) },
