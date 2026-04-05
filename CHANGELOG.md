@@ -5,6 +5,25 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.11.4] - 2026-04-06
+
+### 新功能 (Features)
+
+- **聊天气泡一键复制** — 实时聊天和晴辰助手的消息气泡新增复制按钮，悬停显示，点击后有 ✓ 反馈
+- **Git 路径扫描** — 设置页 Git 路径配置新增"扫描"按钮，自动检测常见安装位置（Program Files、Scoop、Chocolatey、GitHub Desktop、VS Code、MSYS2、Homebrew、Xcode CLT 等），可一键选用
+
+### 修复 (Fixes)
+
+- **IME 输入法回车误发** — 中日韩输入法组合输入时，按回车确认候选词不再误发消息（assistant.js 补充 `isComposing` + `keyCode 229` 检测）
+- **Gateway 外部实例误报** — 外部启动的 Gateway（systemd / Docker / 手动）现在会自动认领，不再误判为"外部实例"弹出引导弹窗；`ensure_owned_gateway_or_err` 和 `get_services_status` 均增加端口 + 数据目录匹配时的自动认领逻辑
+- **Gateway 状态不一致** — 服务页外部 Gateway 显示黄色警告点而非绿色；顶栏区分外部 Gateway（警告 + 认领）与已停止（信息 + 启动）；操作后立即同步全局状态
+- **模型 fallback 自动填充** — 模型保存时不再自动填充 fallback 预设 (fixes #190)
+- **自定义 Git 路径** — 支持用户自定义 Git 可执行文件路径，Skills 打包路径增强
+
+### 安全 (Security)
+
+- **依赖补丁** — picomatch 4.0.4、rustls-webpki 0.103.10 安全更新
+
 ## [0.11.3] - 2026-04-03
 
 ### 修复 (Fixes)

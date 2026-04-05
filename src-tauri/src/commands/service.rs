@@ -147,6 +147,19 @@ fn is_current_gateway_owner(owner: &GatewayOwnerRecord, _pid: Option<u32>) -> bo
     matches_current_gateway_owner_signature(owner)
 }
 
+/// 判断是否可以安全地自动认领 Gateway：端口 + 数据目录匹配即可（忽略 started_by）
+fn should_auto_claim_gateway(owner: &Option<GatewayOwnerRecord>) -> bool {
+    let (port, openclaw_dir, _cli_path) = current_gateway_owner_signature();
+    match owner {
+        None => true, // 无 owner 文件 → 自动认领
+        Some(record) => {
+            // owner 文件存在但签名不完全匹配 → 仅按 port + openclaw_dir 判断
+            record.port == port
+                && normalize_owned_path(&record.openclaw_dir) == openclaw_dir
+        }
+    }
+}
+
 fn foreign_gateway_error(pid: Option<u32>) -> String {
     let pid_suffix = pid
         .map(|value| format!(" (PID: {value})"))
@@ -159,13 +172,19 @@ fn foreign_gateway_error(pid: Option<u32>) -> String {
 }
 
 fn ensure_owned_gateway_or_err(pid: Option<u32>) -> Result<(), String> {
-    if let Some(owner) = read_gateway_owner() {
-        if is_current_gateway_owner(&owner, pid) {
-            if gateway_owner_pid_needs_refresh(&owner, pid) {
+    let owner = read_gateway_owner();
+    if let Some(ref record) = owner {
+        if is_current_gateway_owner(record, pid) {
+            if gateway_owner_pid_needs_refresh(record, pid) {
                 write_gateway_owner(pid)?;
             }
             return Ok(());
         }
+    }
+    // 无有效 owner 或签名不匹配 → 尝试自动认领（端口 + 数据目录匹配即可）
+    if should_auto_claim_gateway(&owner) {
+        write_gateway_owner(pid)?;
+        return Ok(());
     }
     Err(foreign_gateway_error(pid))
 }
@@ -1622,7 +1641,7 @@ pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
     for label in labels.iter().map(String::as_str) {
         let (running, pid) = current_gateway_runtime(label).await;
         let owner = read_gateway_owner();
-        let owned_by_current_instance = running
+        let mut owned_by_current_instance = running
             && owner
                 .as_ref()
                 .map(|record| is_current_gateway_owner(record, pid))
@@ -1633,6 +1652,11 @@ pub async fn get_services_status() -> Result<Vec<ServiceStatus>, String> {
                     let _ = write_gateway_owner(pid);
                 }
             }
+        }
+        // 自动认领：Gateway 在运行但无有效 owner，且端口 + 数据目录匹配 → 自动写入 owner
+        if running && !owned_by_current_instance && should_auto_claim_gateway(&owner) {
+            let _ = write_gateway_owner(pid);
+            owned_by_current_instance = true;
         }
         let ownership = if !running {
             Some("stopped".to_string())

@@ -2391,6 +2391,14 @@ function clearGatewayOwner() {
   } catch {}
 }
 
+function shouldAutoClaimGateway(owner) {
+  const current = currentGatewayOwnerSignature()
+  if (!owner) return true // 无 owner 文件 → 自动认领
+  // owner 文件存在但签名不完全匹配 → 仅按 port + openclaw_dir 判断
+  return Number(owner.port || 0) === current.port
+    && !!owner.openclawDir && path.resolve(owner.openclawDir) === current.openclawDir
+}
+
 function foreignGatewayError(pid = null) {
   const port = readGatewayPort()
   const pidText = pid ? ` (PID: ${pid})` : ''
@@ -2401,6 +2409,11 @@ function ensureOwnedGatewayOrThrow(pid = null) {
   const owner = readGatewayOwner()
   if (isCurrentGatewayOwner(owner, pid)) {
     if (gatewayOwnerPidNeedsRefresh(owner, pid)) writeGatewayOwner(pid)
+    return true
+  }
+  // 无有效 owner 或签名不匹配 → 尝试自动认领（端口 + 数据目录匹配即可）
+  if (shouldAutoClaimGateway(owner)) {
+    writeGatewayOwner(pid)
     return true
   }
   throw foreignGatewayError(pid)
@@ -2992,9 +3005,14 @@ const handlers = {
 
       const cliInstalled = !!resolveOpenclawCliPath()
       const owner = readGatewayOwner()
-      const ownedByCurrentInstance = !!running && isCurrentGatewayOwner(owner, pid || null)
+      let ownedByCurrentInstance = !!running && isCurrentGatewayOwner(owner, pid || null)
       if (ownedByCurrentInstance && gatewayOwnerPidNeedsRefresh(owner, pid || null)) {
         writeGatewayOwner(pid || null)
+      }
+      // 自动认领：Gateway 在运行但无有效 owner，且端口 + 数据目录匹配
+      if (running && !ownedByCurrentInstance && shouldAutoClaimGateway(owner)) {
+        writeGatewayOwner(pid || null)
+        ownedByCurrentInstance = true
       }
       const ownership = !running ? 'stopped' : ownedByCurrentInstance ? 'owned' : 'foreign'
 
