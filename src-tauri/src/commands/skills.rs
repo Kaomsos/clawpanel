@@ -463,13 +463,14 @@ fn custom_skill_roots() -> Vec<(std::path::PathBuf, &'static str)> {
         let cli = std::path::PathBuf::from(&cli_path);
         let cli = std::fs::canonicalize(&cli).unwrap_or(cli);
         // CLI 可能在 bin/ 子目录或包根目录
-        for ancestor in [cli.parent(), cli.parent().and_then(|p| p.parent())] {
-            if let Some(pkg_root) = ancestor {
-                let bundled = pkg_root.join("skills");
-                if bundled.is_dir() && !roots.iter().any(|(dir, _)| dir == &bundled) {
-                    roots.push((bundled, "OpenClaw 内置"));
-                    break;
-                }
+        for pkg_root in [cli.parent(), cli.parent().and_then(|p| p.parent())]
+            .into_iter()
+            .flatten()
+        {
+            let bundled = pkg_root.join("skills");
+            if bundled.is_dir() && !roots.iter().any(|(dir, _)| dir == &bundled) {
+                roots.push((bundled, "OpenClaw 内置"));
+                break;
             }
         }
     }
