@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  AI アシスタント内蔵の OpenClaw 管理パネル — ワンクリックでインストール、設定、診断、修復
+  AI アシスタント内蔵の OpenClaw & Hermes Agent 管理パネル — マルチエンジン AI フレームワーク管理
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
   <img src="docs/feature-showcase.gif" width="800" alt="ClawPanel 機能ショーケース">
 </p>
 
-ClawPanel は [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) AI Agent フレームワークのビジュアル管理パネルです。**インテリジェント AI アシスタントを内蔵**し、OpenClaw のワンクリックインストール、設定の自動診断、問題の特定と修復をサポートします。8 つのツール + 4 つのモード + インタラクティブ Q&A で、初心者からエキスパートまで簡単に管理できます。
+ClawPanel は複数の AI Agent フレームワークをサポートするビジュアル管理パネルで、現在 [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) と [Hermes Agent](https://github.com/org-2048/hermes-agent) のデュアルエンジンをサポートしています。**インテリジェント AI アシスタントを内蔵**し、ワンクリックインストール、設定の自動診断、問題の特定と修復をサポートします。8 つのツール + 4 つのモード + インタラクティブ Q&A で、初心者からエキスパートまで簡単に管理できます。
 
 > 🌐 **ウェブサイト**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **ダウンロード**: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -69,9 +69,11 @@ AI Agent に情熱を持つ開発者とユーザーのコミュニティ — ぜ
 ## 機能
 
 - **🤖 AI アシスタント（新機能）** — 内蔵 AI アシスタント、4 モード + 8 ツール + インタラクティブ Q&A
+- **🧩 マルチエンジンアーキテクチャ** — OpenClaw と Hermes Agent のデュアルエンジンをサポート、自由に切り替え、それぞれ独立管理
+- **🤖 Hermes Agent チャット** — 内蔵 Hermes Agent チャットインターフェース、ツール呼び出しの可視化、ファイルアクセス切り替え、SSE ストリーミング
 - **🖼️ 画像認識** — スクリーンショットの貼り付けや画像のドラッグで AI が自動分析
 - **ダッシュボード** — システム概要、リアルタイムサービス監視、クイックアクション
-- **サービス管理** — OpenClaw の起動/停止、バージョン検出とワンクリックアップグレード
+- **サービス管理** — OpenClaw / Hermes Gateway の起動/停止、バージョン検出とワンクリックアップグレード
 - **モデル設定** — マルチプロバイダー管理、バッチ接続テスト、ドラッグ並び替え、自動保存
 - **ゲートウェイ設定** — ポート、アクセス範囲、認証 Token、Tailscale
 - **メッセージチャンネル** — Telegram、Discord、飛書、DingTalk、QQ の統合管理

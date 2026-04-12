@@ -5,6 +5,26 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.13.0] - 2026-04-13
+
+### 新功能 (Features)
+
+- **Hermes Agent 多引擎支持** — 新增 Hermes Agent 引擎，与 OpenClaw 双引擎并行，自由切换、各自独立管理。包含完整的 Hermes 仪表盘、服务管理、模型配置、Agent 管理等页面
+- **Hermes Agent 对话** — 内置 Hermes Agent 聊天界面，支持工具调用可视化、SSE 流式输出、多会话管理、Slash 命令
+- **文件系统访问开关** — Hermes Agent 对话新增文件访问开关，开启后 Agent 可读取本机文件，自动适配 Windows/macOS/Linux 命令
+- **多安装清理工具** — OpenClaw 多安装检测与一键清理，支持查看所有安装路径、卸载命令、CLI 绑定
+
+### 改进 (Improvements)
+
+- **官网与文档全面更新** — 官网 index.html、所有 11 语言 README 更新为多引擎架构描述，SEO meta/OG/Twitter Card/Schema.org 同步更新
+- **内部文档整理** — 规划与开发文档从 docs/ 迁移至 .tmp/，不再对外暴露
+
+### 修复 (Fixes)
+
+- **Gateway 冲突引导优化** — 外来 Gateway 冲突弹窗新增一键清理按钮，直接跳转安装管理
+
+---
+
 ## [0.12.0] - 2026-04-11
 
 ### 新功能 (Features)

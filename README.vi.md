@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Bảng quản lý OpenClaw với Trợ lý AI tích hợp — Cài đặt, Cấu hình, Chẩn đoán & Sửa lỗi một cú nhấp
+  Bảng quản lý OpenClaw & Hermes Agent với Trợ lý AI tích hợp — Quản lý đa động cơ AI Framework
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
   <img src="docs/feature-showcase.gif" width="800" alt="ClawPanel Showcase">
 </p>
 
-ClawPanel là bảng quản lý trực quan cho framework AI Agent [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation). Tích hợp **trợ lý AI thông minh**, giúp bạn cài đặt OpenClaw một cú nhấp, tự động chẩn đoán cấu hình, xử lý sự cố và sửa lỗi. 8 công cụ + 4 chế độ + hỏi đáp tương tác — dễ dàng quản lý cho cả người mới và chuyên gia.
+ClawPanel là bảng quản lý trực quan hỗ trợ nhiều AI Agent framework, hiện tại hỗ trợ [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) và [Hermes Agent](https://github.com/org-2048/hermes-agent) động cơ kép. Tích hợp **trợ lý AI thông minh**, giúp bạn cài đặt, tự động chẩn đoán cấu hình, xử lý sự cố và sửa lỗi. 8 công cụ + 4 chế độ + hỏi đáp tương tác — dễ dàng quản lý cho cả người mới và chuyên gia.
 
 > 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Tải xuống**: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -69,9 +69,11 @@ Cộng đồng các nhà phát triển và người dùng đam mê AI Agent — 
 ## Tính năng
 
 - **🤖 Trợ lý AI (Mới)** — Trợ lý AI tích hợp, 4 chế độ + 8 công cụ + hỏi đáp tương tác
+- **🧩 Kiến trúc đa động cơ** — Hỗ trợ cả OpenClaw và Hermes Agent, chuyển đổi tự do, quản lý độc lập
+- **🤖 Hermes Agent Chat** — Giao diện chat Hermes Agent tích hợp, hiển thị công cụ, chuyển đổi truy cập tệp, SSE streaming
 - **🖼️ Nhận dạng hình ảnh** — Dán ảnh chụp màn hình hoặc kéo thả hình ảnh, AI tự động phân tích
 - **Bảng điều khiển** — Tổng quan hệ thống, giám sát dịch vụ thời gian thực
-- **Quản lý dịch vụ** — Khởi động/dừng OpenClaw, phát hiện phiên bản & nâng cấp một cú nhấp
+- **Quản lý dịch vụ** — Khởi động/dừng OpenClaw / Hermes Gateway, phát hiện phiên bản & nâng cấp
 - **Cấu hình mô hình** — Quản lý nhiều nhà cung cấp, kiểm tra kết nối hàng loạt, kéo sắp xếp
 - **Cấu hình Gateway** — Cổng, phạm vi truy cập, Token xác thực, Tailscale
 - **Kênh nhắn tin** — Quản lý thống nhất Telegram, Discord, Feishu, DingTalk, QQ

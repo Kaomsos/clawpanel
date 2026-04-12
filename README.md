@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  内置 AI 助手的 OpenClaw 管理面板 — 一键安装、配置、诊断、修复
+  内置 AI 助手的 OpenClaw & Hermes Agent 管理面板 — 多引擎 AI 框架管理
 </p>
 
 <p align="center">
@@ -37,7 +37,7 @@
   </a>
 </p>
 
-ClawPanel 是 [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) AI Agent 框架的可视化管理面板。**内置智能 AI 助手**，帮你一键安装 OpenClaw、自动诊断配置、排查问题、修复错误。8 大工具 + 4 种模式 + 交互式问答，从新手到老手都能轻松管理。
+ClawPanel 是支持多 AI Agent 框架的可视化管理面板，目前支持 [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) 和 [Hermes Agent](https://github.com/org-2048/hermes-agent) 双引擎。**内置智能 AI 助手**，帮你一键安装、自动诊断配置、排查问题、修复错误。8 大工具 + 4 种模式 + 交互式问答，从新手到老手都能轻松管理。
 
 > 🌐 **官网**: [claw.qt.cool](https://claw.qt.cool/)  |  📦 **下载**: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -369,9 +369,11 @@ docker rmi $(docker images --filter "reference=*clawpanel*" -q) 2>/dev/null
 </p>
 
 - **🤖 AI 助手（全新·重磅）** — 内置独立 AI 助手，4 种操作模式 + 8 大工具 + 交互式问答，详见下方 [AI 助手亮点](#-ai-助手亮点)
+- **🧩 多引擎架构** — 同时支持 OpenClaw 和 Hermes Agent 双引擎，自由切换，各自独立管理
+- **🤖 Hermes Agent 对话** — 内置 Hermes Agent 聊天界面，支持工具调用可视化、文件系统访问开关、SSE 流式输出
 - **🖼️ 图片识别** — 粘贴截图或拖拽图片，AI 自动识别分析，支持多模态图文混排对话
 - **仪表盘** — 系统概览，服务状态实时监控，快捷操作
-- **服务管理** — OpenClaw 启停控制、版本检测与一键升级、Gateway 安装/卸载、配置备份与还原
+- **服务管理** — OpenClaw / Hermes Gateway 启停控制、版本检测与一键升级、配置备份与还原
 - **模型配置** — 多服务商管理、模型增删改查、批量连通性测试、延迟检测、拖拽排序、自动保存+撤销
 - **网关配置** — 端口、访问权限（本机/局域网）、认证 Token、Tailscale 组网
 - **消息渠道** — 统一管理 Telegram、Discord、飞书、钉钉、QQ 等消息接入，支持同平台多 Agent 绑定

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  OpenClaw-Verwaltungspanel mit integriertem KI-Assistenten — Installation, Konfiguration, Diagnose & Reparatur mit einem Klick
+  OpenClaw & Hermes Agent Verwaltungspanel mit integriertem KI-Assistenten — Multi-Engine AI-Framework-Verwaltung
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
   <img src="docs/feature-showcase.gif" width="800" alt="ClawPanel Showcase">
 </p>
 
-ClawPanel ist ein visuelles Verwaltungspanel für das KI-Agenten-Framework [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation). Mit einem **integrierten intelligenten KI-Assistenten**, der bei der Ein-Klick-Installation von OpenClaw hilft, Konfigurationen automatisch diagnostiziert, Probleme behebt und Fehler korrigiert. 8 Werkzeuge + 4 Modi + interaktives Q&A — einfache Verwaltung für Anfänger und Experten.
+ClawPanel ist ein visuelles Verwaltungspanel, das mehrere AI-Agent-Frameworks unterstützt, derzeit mit Dual-Engine-Unterstützung für [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) und [Hermes Agent](https://github.com/org-2048/hermes-agent). Mit einem **integrierten intelligenten KI-Assistenten**, der bei der Installation hilft, Konfigurationen automatisch diagnostiziert, Probleme behebt und Fehler korrigiert. 8 Werkzeuge + 4 Modi + interaktives Q&A — einfache Verwaltung für Anfänger und Experten.
 
 > 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Download**: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -69,9 +69,11 @@ Eine Community leidenschaftlicher KI-Agenten-Entwickler und -Enthusiasten — tr
 ## Funktionen
 
 - **🤖 KI-Assistent (Neu)** — Integrierter KI-Assistent, 4 Modi + 8 Werkzeuge + interaktives Q&A
+- **🧩 Multi-Engine-Architektur** — Unterstützt OpenClaw und Hermes Agent Dual-Engine, freies Umschalten, unabhängige Verwaltung
+- **🤖 Hermes Agent Chat** — Integrierte Hermes Agent Chat-Oberfläche, Tool-Aufruf-Visualisierung, Dateizugriff, SSE-Streaming
 - **🖼️ Bilderkennung** — Screenshots einfügen oder Bilder ziehen, KI analysiert automatisch
 - **Dashboard** — Systemübersicht, Echtzeit-Service-Monitoring
-- **Serviceverwaltung** — OpenClaw starten/stoppen, Versionserkennung und Ein-Klick-Upgrade
+- **Serviceverwaltung** — OpenClaw / Hermes Gateway starten/stoppen, Versionserkennung und Upgrade
 - **Modellkonfiguration** — Multi-Provider-Verwaltung, Batch-Konnektivitätstests, Drag-Sortierung
 - **Gateway-Konfiguration** — Port, Zugriffsbereich, Auth-Token, Tailscale
 - **Nachrichtenkanäle** — Einheitliche Verwaltung von Telegram, Discord, Feishu, DingTalk, QQ

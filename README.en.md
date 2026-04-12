@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  OpenClaw Management Panel with Built-in AI Assistant — One-click Install, Configure, Diagnose & Fix
+  OpenClaw & Hermes Agent Management Panel with Built-in AI Assistant — Multi-Engine AI Framework Management
 </p>
 
 <p align="center">
@@ -31,7 +31,7 @@
   <img src="docs/feature-showcase.gif" width="800" alt="ClawPanel Feature Showcase">
 </p>
 
-ClawPanel is a visual management panel for the [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) AI Agent framework. It features a **built-in intelligent AI assistant** that helps you install OpenClaw with one click, auto-diagnose configurations, troubleshoot issues, and fix errors. 8 tools + 4 modes + interactive Q&A — easy to manage for beginners and experts alike.
+ClawPanel is a visual management panel supporting multiple AI Agent frameworks, currently with [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) and [Hermes Agent](https://github.com/org-2048/hermes-agent) dual-engine support. It features a **built-in intelligent AI assistant** that helps you install, auto-diagnose configurations, troubleshoot issues, and fix errors. 8 tools + 4 modes + interactive Q&A — easy to manage for beginners and experts alike.
 
 > 🌐 **Website**: [claw.qt.cool](https://claw.qt.cool/) | 📦 **Download**: [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -76,9 +76,11 @@ A community of passionate AI Agent developers and enthusiasts — join us!
 ## Features
 
 - **🤖 AI Assistant (New)** — Built-in AI assistant, 4 modes + 8 tools + interactive Q&A. See [AI Assistant Highlights](#-ai-assistant-highlights)
+- **🧩 Multi-Engine Architecture** — Supports both OpenClaw and Hermes Agent dual engines, freely switchable, independently managed
+- **🤖 Hermes Agent Chat** — Built-in Hermes Agent chat interface with tool call visualization, file system access toggle, SSE streaming output
 - **🖼️ Image Recognition** — Paste screenshots or drag images, AI auto-analyzes, multimodal conversations
 - **Dashboard** — System overview, real-time service monitoring, quick actions
-- **Service Management** — OpenClaw start/stop, version detection & one-click upgrade, Gateway install/uninstall, config backup & restore
+- **Service Management** — OpenClaw / Hermes Gateway start/stop, version detection & one-click upgrade, config backup & restore
 - **Model Configuration** — Multi-provider management, model CRUD, batch connectivity tests, latency detection, drag-to-reorder, auto-save + undo
 - **Gateway Configuration** — Port, access scope (localhost/LAN), auth Token, Tailscale networking
 - **Messaging Channels** — Unified Telegram, Discord, Feishu, DingTalk, QQ management, multi-Agent binding per platform

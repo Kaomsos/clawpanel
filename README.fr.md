@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  Panneau de gestion OpenClaw avec Assistant IA intégré — Installation, Configuration, Diagnostic et Réparation en un clic
+  Panneau de gestion OpenClaw & Hermes Agent avec Assistant IA intégré — Gestion multi-moteur de frameworks IA
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
   <img src="docs/feature-showcase.gif" width="800" alt="ClawPanel Showcase">
 </p>
 
-ClawPanel est un panneau de gestion visuel pour le framework d'agents IA [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation). Il intègre un **assistant IA intelligent** qui vous aide à installer OpenClaw en un clic, diagnostiquer automatiquement les configurations, résoudre les problèmes et corriger les erreurs. 8 outils + 4 modes + Q&A interactif — facile à gérer pour débutants et experts.
+ClawPanel est un panneau de gestion visuel supportant plusieurs frameworks d'agents IA, actuellement avec un double support pour [OpenClaw](https://github.com/1186258278/OpenClawChineseTranslation) et [Hermes Agent](https://github.com/org-2048/hermes-agent). Il intègre un **assistant IA intelligent** qui vous aide à installer, diagnostiquer automatiquement les configurations, résoudre les problèmes et corriger les erreurs. 8 outils + 4 modes + Q&A interactif — facile à gérer pour débutants et experts.
 
 > 🌐 **Site web** : [claw.qt.cool](https://claw.qt.cool/) | 📦 **Télécharger** : [GitHub Releases](https://github.com/qingchencloud/clawpanel/releases/latest)
 
@@ -69,9 +69,11 @@ Une communauté de développeurs et d'enthousiastes passionnés par les agents I
 ## Fonctionnalités
 
 - **🤖 Assistant IA (Nouveau)** — Assistant IA intégré, 4 modes + 8 outils + Q&A interactif
+- **🧩 Architecture multi-moteur** — Support OpenClaw et Hermes Agent en double moteur, commutation libre, gestion indépendante
+- **🤖 Chat Hermes Agent** — Interface de chat Hermes Agent intégrée, visualisation des appels d'outils, accès aux fichiers, streaming SSE
 - **🖼️ Reconnaissance d'images** — Collez des captures d'écran ou glissez des images, l'IA analyse automatiquement
 - **Tableau de bord** — Vue d'ensemble du système, surveillance des services en temps réel
-- **Gestion des services** — Démarrage/arrêt d'OpenClaw, détection de version et mise à jour en un clic
+- **Gestion des services** — Démarrage/arrêt d'OpenClaw / Hermes Gateway, détection de version et mise à jour
 - **Configuration des modèles** — Gestion multi-fournisseurs, tests de connectivité par lots, tri par glisser-déposer
 - **Configuration du Gateway** — Port, portée d'accès, Token d'authentification, Tailscale
 - **Canaux de messagerie** — Gestion unifiée de Telegram, Discord, Feishu, DingTalk, QQ

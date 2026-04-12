@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ClawPanel - OpenClaw AI Agent 可视化管理面板 | 快速搭建、配置、监控你的 AI 智能体</title>
-  <meta name="description" content="ClawPanel 是 OpenClaw AI Agent 框架的可视化管理面板，基于 Tauri v2 构建的跨平台桌面应用。内置晴辰助手（AI Assistant）支持工具调用（终端执行、文件读写、目录浏览），让 AI 帮你诊断和修复 OpenClaw 配置。支持仪表盘监控、多模型配置（OpenAI/DeepSeek/Kimi/Anthropic）、晴辰云 AI 接口一键接入、消息渠道管理、内置 QQ 机器人、实时 AI 聊天、记忆管理、Agent 管理、网关配置、服务管控、日志查看、内网穿透、系统诊断。一键安装 OpenClaw，快速搭建你的私有 AI Agent，开源免费，支持 Windows/macOS/Linux。支持 11 种语言。">
-  <meta name="keywords" content="ClawPanel, OpenClaw, AI Agent, AI 智能体, 管理面板, 可视化管理, 快速搭建, 一键安装, 桌面应用, 跨平台, Tauri, Tauri v2, Rust, 开源, 免费, LLM, 大语言模型, 多模型, 模型配置, OpenAI, DeepSeek, Kimi, Anthropic, Claude, 晴辰云, 晴辰云 AI 接口, QingchenCloud, 晴辰助手, AI Assistant, 消息渠道, QQ 机器人, Telegram, Discord, 实时聊天, AI 对话, 流式响应, 记忆管理, Agent 管理, 多 Agent, 网关配置, Gateway, 服务管理, 日志查看, 内网穿透, Cloudflare Tunnel, 系统诊断, WebSocket, 仪表盘, 监控, 配置管理, 私有部署, 本地部署, 自托管, AI 工具, AI 平台, 智能体平台, 人工智能, 深度学习, 自然语言处理, NLP, 模型调度, 模型切换, 备选模型, 开箱即用, 零代码, 低代码, admin panel, dashboard, open source AI, self-hosted AI, local AI, AI management, Docker 部署, 开发板, 树莓派, ARM, i18n, 多语言">
+  <title>ClawPanel - OpenClaw & Hermes Agent 多引擎 AI 管理面板 | 快速搭建、配置、监控你的 AI 智能体</title>
+  <meta name="description" content="ClawPanel 是支持多 AI Agent 框架的可视化管理面板，目前支持 OpenClaw 和 Hermes Agent 双引擎。基于 Tauri v2 构建的跨平台桌面应用。内置晴辰助手（AI Assistant）支持工具调用（终端执行、文件读写、目录浏览），让 AI 帮你诊断和修复配置。支持仪表盘监控、多模型配置（OpenAI/DeepSeek/Kimi/Anthropic）、晴辰云 AI 接口一键接入、Hermes Agent 对话、消息渠道管理、内置 QQ 机器人、实时 AI 聊天、记忆管理、Agent 管理、网关配置、服务管控、日志查看、内网穿透、系统诊断。开源免费，支持 Windows/macOS/Linux，支持 11 种语言。">
+  <meta name="keywords" content="ClawPanel, OpenClaw, Hermes Agent, AI Agent, AI 智能体, 多引擎, 管理面板, 可视化管理, 快速搭建, 一键安装, 桌面应用, 跨平台, Tauri, Tauri v2, Rust, 开源, 免费, LLM, 大语言模型, 多模型, 模型配置, OpenAI, DeepSeek, Kimi, Anthropic, Claude, 晴辰云, 晴辰云 AI 接口, QingchenCloud, 晴辰助手, AI Assistant, 消息渠道, QQ 机器人, Telegram, Discord, 实时聊天, AI 对话, 流式响应, 记忆管理, Agent 管理, 多 Agent, 网关配置, Gateway, 服务管理, 日志查看, 内网穿透, Cloudflare Tunnel, 系统诊断, WebSocket, 仪表盘, 监控, 配置管理, 私有部署, 本地部署, 自托管, AI 工具, AI 平台, 智能体平台, 人工智能, 深度学习, 自然语言处理, NLP, 模型调度, 模型切换, 备选模型, 开箱即用, 零代码, 低代码, admin panel, dashboard, open source AI, self-hosted AI, local AI, AI management, Docker 部署, 开发板, 树莓派, ARM, i18n, 多语言">
   <meta name="author" content="晴辰云 QingchenCloud">
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
   <link rel="canonical" href="https://claw.qt.cool/">
-  <meta property="og:title" content="ClawPanel - OpenClaw AI Agent 可视化管理面板 | 快速搭建你的 AI 智能体">
-  <meta property="og:description" content="基于 Tauri v2 的跨平台桌面应用，为 OpenClaw AI Agent 提供可视化管理。内置晴辰助手支持工具调用，晴辰云 AI 接口一键接入，消息渠道管理与内置 QQ 机器人。开源免费，支持 11 种语言。">
+  <meta property="og:title" content="ClawPanel - OpenClaw & Hermes Agent 多引擎 AI 管理面板 | 快速搭建你的 AI 智能体">
+  <meta property="og:description" content="基于 Tauri v2 的跨平台桌面应用，支持 OpenClaw 和 Hermes Agent 双引擎 AI 管理。内置晴辰助手支持工具调用，晴辰云 AI 接口一键接入，消息渠道管理与内置 QQ 机器人。开源免费，支持 11 种语言。">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://claw.qt.cool/">
   <meta property="og:site_name" content="ClawPanel">
@@ -20,8 +20,8 @@
   <meta property="og:image:height" content="675">
   <meta property="og:image:alt" content="ClawPanel 仪表盘">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="ClawPanel - OpenClaw AI Agent 可视化管理面板">
-  <meta name="twitter:description" content="基于 Tauri v2 的跨平台桌面应用。内置晴辰助手与晴辰云 AI 接口，支持消息渠道管理、QQ 机器人、多模型配置与实时 AI 聊天。开源免费。">
+  <meta name="twitter:title" content="ClawPanel - OpenClaw & Hermes Agent 多引擎 AI 管理面板">
+  <meta name="twitter:description" content="基于 Tauri v2 的跨平台桌面应用。支持 OpenClaw & Hermes Agent 双引擎，内置晴辰助手与晴辰云 AI 接口，消息渠道管理、QQ 机器人、多模型配置与实时 AI 聊天。开源免费。">
   <meta name="twitter:image" content="https://claw.qt.cool/00.png">
   <link rel="icon" href="./logo.png" type="image/png">
   <script type="application/ld+json">
@@ -31,10 +31,10 @@
     "name": "ClawPanel",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
-    "description": "OpenClaw AI Agent 可视化管理面板，基于 Tauri v2 的跨平台桌面应用。内置晴辰助手支持工具调用，晴辰云 AI 接口一键接入。支持仪表盘监控、多模型配置、消息渠道管理、内置 QQ 机器人、实时 AI 聊天、记忆管理、Agent 管理、网关配置、内网穿透等功能。支持 11 种语言。",
+    "description": "支持 OpenClaw 和 Hermes Agent 双引擎的多 AI Agent 可视化管理面板，基于 Tauri v2 的跨平台桌面应用。内置晴辰助手支持工具调用，晴辰云 AI 接口一键接入。支持仪表盘监控、多模型配置、Hermes Agent 对话、消息渠道管理、内置 QQ 机器人、实时 AI 聊天、记忆管理、Agent 管理、网关配置、内网穿透等功能。支持 11 种语言。",
     "url": "https://claw.qt.cool/",
     "downloadUrl": "https://github.com/qingchencloud/clawpanel/releases/latest",
-    "softwareVersion": "0.12.0",
+    "softwareVersion": "0.13.0",
     "author": {
       "@type": "Organization",
       "name": "晴辰云 QingchenCloud",
@@ -47,7 +47,7 @@
       "priceCurrency": "CNY"
     },
     "screenshot": "https://claw.qt.cool/00.png",
-    "keywords": "OpenClaw, AI Agent, 管理面板, Tauri, 跨平台, 开源, 免费, LLM, 多模型, 晴辰云, 晴辰助手, Discord"
+    "keywords": "OpenClaw, Hermes Agent, AI Agent, 多引擎, 管理面板, Tauri, 跨平台, 开源, 免费, LLM, 多模型, 晴辰云, 晴辰助手, Discord"
   }
   </script>
   <style>
@@ -621,9 +621,9 @@
     <div class="orb orb-1" id="orb1"></div>
     <div class="orb orb-2" id="orb2"></div>
     <div class="hero-inner">
-      <div class="reveal hero-badge"><span class="pulse"></span> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1"/><circle cx="15" cy="16" r="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> <span data-i18n="hero.badge">内置 AI 助手 — 一键安装、配置、诊断、修复 OpenClaw</span></div>
-      <h1 class="reveal hero-title" data-i18n="hero.title"><span class="gradient-text shimmer">AI 助手</span>驱动的<br>OpenClaw 管理面板</h1>
-      <p class="reveal hero-subtitle" data-i18n="hero.sub">内置智能 AI 助手，帮你<strong>一键安装 OpenClaw</strong>、自动诊断配置、排查问题、修复错误。<br>新增消息渠道管理，内置 QQ 机器人，并支持 Telegram、Discord 等外部渠道接入。</p>
+      <div class="reveal hero-badge"><span class="pulse"></span> <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-2px"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="9" cy="16" r="1"/><circle cx="15" cy="16" r="1"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> <span data-i18n="hero.badge">内置 AI 助手 — 支持 OpenClaw & Hermes Agent 双引擎管理</span></div>
+      <h1 class="reveal hero-title" data-i18n="hero.title"><span class="gradient-text shimmer">AI 助手</span>驱动的<br>多引擎 AI 管理面板</h1>
+      <p class="reveal hero-subtitle" data-i18n="hero.sub">支持 <strong>OpenClaw</strong> 和 <strong>Hermes Agent</strong> 双引擎，内置智能 AI 助手帮你一键安装、自动诊断配置、排查问题、修复错误。<br>内置 Hermes Agent 对话、消息渠道管理、QQ 机器人，并支持 Telegram、Discord 等外部渠道。</p>
       <div class="reveal hero-cta">
         <a href="#download" class="btn btn-primary">
           <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 004.561 21h14.878a2 2 0 001.94-1.515L22 17"/></svg>
@@ -744,7 +744,7 @@
     <div class="container" style="position:relative;z-index:10">
       <div class="section-header">
         <h2 class="reveal section-title" data-i18n="feat.title">强大的 <span class="gradient-text">功能矩阵</span></h2>
-        <p class="reveal section-desc" data-i18n="feat.desc">一个面板，管理 OpenClaw 的方方面面</p>
+        <p class="reveal section-desc" data-i18n="feat.desc">一个面板，管理 OpenClaw & Hermes Agent 双引擎</p>
       </div>
 
       <!-- 仪表盘 -->
@@ -1652,9 +1652,9 @@
       'nav.features':'Features','nav.tech':'Architecture','nav.quickstart':'Quick Start',
       'nav.deploy':'Deploy','nav.docs':'Docs','nav.community':'Community',
       'nav.activity':'Activity','nav.download':'Download',
-      'hero.badge':'Built-in AI Assistant — One-click Install, Configure, Diagnose & Fix OpenClaw',
-      'hero.title':'<span class="gradient-text shimmer">AI Assistant</span>-Powered<br>OpenClaw Management Panel',
-      'hero.sub':'Built-in smart AI assistant helps you <strong>install OpenClaw with one click</strong>, auto-diagnose configs, troubleshoot issues & fix errors.<br>New messaging channel management with built-in QQ bot, plus Telegram, Discord & more.',
+      'hero.badge':'Built-in AI Assistant — Supporting OpenClaw & Hermes Agent Dual-Engine Management',
+      'hero.title':'<span class="gradient-text shimmer">AI Assistant</span>-Powered<br>Multi-Engine AI Management Panel',
+      'hero.sub':'Supports <strong>OpenClaw</strong> and <strong>Hermes Agent</strong> dual engines with built-in AI assistant for one-click install, auto-diagnosis, troubleshooting & error fixing.<br>Built-in Hermes Agent chat, messaging channels, QQ bot, plus Telegram, Discord & more.',
       'hero.dl':'Download Latest','hero.src':'Source Code',
       'stat.1':'Modules','stat.2':'Desktop Framework','stat.3':'Cross-Platform','stat.4':'License',
       'comm.title':'<span class="gradient-text">Join Community</span>',
@@ -1667,7 +1667,7 @@
       'video.title':'Product <span class="gradient-text">Demo Video</span>',
       'video.desc':'From dashboard to memory management, see all core features in one video',
       'feat.title':'Powerful <span class="gradient-text">Feature Matrix</span>',
-      'feat.desc':'One panel to manage every aspect of OpenClaw',
+      'feat.desc':'One panel to manage OpenClaw & Hermes Agent',
       'feat.tag.overview':'Full Overview','feat.tag.ready':'Ready to Use','feat.tag.soul':'Soul Transfer',
       'feat.tag.core':'Core Feature','feat.tag.config':'Config Center','feat.tag.data':'Data Management',
       'feat.tag.security':'Security','feat.tag.agent':'Smart Agent',
@@ -1764,7 +1764,7 @@
       'doc4.t':'Changelog','doc4.d':'New features, bug fixes and improvements for each version',
       'doc4.t1':'New Features','doc4.t2':'Bug Fixes','doc4.t3':'Version History',
       'eco.title':'<span class="gradient-text">Ecosystem</span>',
-      'eco.desc':'ClawPanel is part of the OpenClaw ecosystem',
+      'eco.desc':'ClawPanel supports the OpenClaw & Hermes Agent ecosystems',
       'eco1.d':'AI Agent Framework — ClawPanel\'s core management target',
       'eco2.d':'Cross-platform mobile chat client, talk to AI Agent anywhere',
       'eco3.d':'Cloudflare Tunnel tool, expose local services with one click',
