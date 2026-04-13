@@ -89,6 +89,8 @@ async function loadHermesData(page) {
 
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
+    const btnSm = 'padding:2px 8px;font-size:var(--font-size-xs)'
+
     cards.innerHTML = `
       <div class="stat-card">
         <div class="stat-card-header"><span class="stat-card-label">ClawPanel</span></div>
@@ -103,7 +105,12 @@ async function loadHermesData(page) {
             ? `<span style="color:var(--success)">● Gateway ${t('engine.dashRunning')} · :${port}</span>`
             : `<span style="color:var(--text-tertiary)">○ Gateway ${t('engine.dashStopped')}</span>`}
           ${model ? `<span style="color:var(--text-secondary)">${t('engine.dashModel')}: ${esc(model)}</span>` : ''}
-          ${!installed ? `<a class="btn btn-primary btn-sm" href="#/h/setup" style="padding:2px 8px;font-size:var(--font-size-xs)">${t('about.hermesSetup')}</a>` : ''}
+          ${!installed ? `<a class="btn btn-primary btn-sm" href="#/h/setup" style="${btnSm}">${t('about.hermesSetup')}</a>` : ''}
+          ${installed ? `
+            <a class="btn btn-secondary btn-sm" href="#/h/setup" style="${btnSm}">${t('about.hermesConfig')}</a>
+            <button class="btn btn-secondary btn-sm" id="btn-hermes-upgrade" style="${btnSm}">${t('about.hermesUpgrade')}</button>
+            <button class="btn btn-danger btn-sm" id="btn-hermes-uninstall" style="${btnSm}">${t('about.hermesUninstall')}</button>
+          ` : ''}
         </div>
       </div>
       <div class="stat-card">
@@ -112,6 +119,49 @@ async function loadHermesData(page) {
         <div class="stat-card-meta" style="word-break:break-all">${esc(pyPath)}</div>
       </div>
     `
+
+    // Hermes 管理按钮事件
+    if (installed) {
+      const upgradeBtn = cards.querySelector('#btn-hermes-upgrade')
+      const uninstallBtn = cards.querySelector('#btn-hermes-uninstall')
+
+      if (upgradeBtn) {
+        upgradeBtn.onclick = async () => {
+          upgradeBtn.disabled = true
+          upgradeBtn.textContent = t('about.upgrading')
+          try {
+            const ver = await api.updateHermes()
+            toast(t('about.hermesUpgradeOk', { version: ver || '' }), 'success')
+            loadHermesData(page)
+          } catch (e) {
+            toast(t('about.hermesUpgradeFail', { error: e.message || e }), 'error')
+          } finally {
+            upgradeBtn.disabled = false
+            upgradeBtn.textContent = t('about.hermesUpgrade')
+          }
+        }
+      }
+
+      if (uninstallBtn) {
+        uninstallBtn.onclick = async () => {
+          const confirmed = confirm(t('about.hermesUninstallConfirm'))
+          if (!confirmed) return
+          const cleanConfig = confirm(t('about.hermesUninstallCleanConfig'))
+          uninstallBtn.disabled = true
+          uninstallBtn.textContent = t('about.uninstalling')
+          try {
+            await api.uninstallHermes(cleanConfig)
+            toast(t('about.hermesUninstallOk'), 'success')
+            loadHermesData(page)
+          } catch (e) {
+            toast(t('about.hermesUninstallFail', { error: e.message || e }), 'error')
+          } finally {
+            uninstallBtn.disabled = false
+            uninstallBtn.textContent = t('about.hermesUninstall')
+          }
+        }
+      }
+    }
   } catch {
     cards.innerHTML = `<div class="stat-card"><div class="stat-card-label">${t('common.loadFailed')}</div></div>`
   }
