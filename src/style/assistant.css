@@ -1180,6 +1180,25 @@
   font-size: 11px;
   color: var(--text-tertiary);
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* 熔断状态：连续错误时的警告变体（Fix #226） */
+.ast-retry-bar-circuit {
+  background: color-mix(in srgb, var(--warning, #f59e0b) 10%, var(--bg-secondary));
+  border-color: var(--warning, #f59e0b);
+}
+.ast-retry-bar-circuit .ast-retry-hint {
+  color: var(--warning, #f59e0b);
+  font-weight: 500;
+}
+.ast-retry-bar-circuit .ast-btn-retry[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ast-retry-bar-circuit .ast-btn-retry[disabled]:hover {
+  filter: none;
 }
 
 /* 发送队列 */

@@ -1377,6 +1377,79 @@ function sanitizeUserTextForApi(text) {
   return text.replace(LOCAL_PATH_MD_IMG_RE, t('assistant.localPathSanitized'))
 }
 
+// ── 连续错误熔断（Fix #226）──
+// 同一错误连续出现 N 次时暂停自动重试，引导用户检查配置，避免无限循环
+const CIRCUIT_WINDOW_MS = 2 * 60 * 1000 // 2 分钟滑动窗口
+const CIRCUIT_THRESHOLD = 3 // 同错误指纹出现 ≥3 次视为熔断打开
+let _recentFailures = [] // [{ fp: string, ts: number }]
+
+function _errorFingerprint(err) {
+  const msg = String(err?.message || err || '').trim()
+  if (!msg) return ''
+  // 归一化：去掉变化的数字（时间戳/ID）、URL、多余空白，保留错误核心
+  return msg
+    .replace(/\d{3,}/g, 'N')
+    .replace(/\bhttps?:\/\/\S+/gi, 'URL')
+    .replace(/\s+/g, ' ')
+    .slice(0, 180)
+}
+
+function recordRequestFailure(err) {
+  const fp = _errorFingerprint(err)
+  if (!fp) return
+  const now = Date.now()
+  _recentFailures.push({ fp, ts: now })
+  _recentFailures = _recentFailures.filter(f => now - f.ts < CIRCUIT_WINDOW_MS)
+}
+
+function isCircuitOpenFor(err) {
+  const fp = _errorFingerprint(err)
+  if (!fp) return false
+  const now = Date.now()
+  const matching = _recentFailures.filter(f => f.fp === fp && now - f.ts < CIRCUIT_WINDOW_MS)
+  return matching.length >= CIRCUIT_THRESHOLD
+}
+
+function resetCircuit() {
+  _recentFailures = []
+}
+
+// 创建错误重试栏（sendMessageDirect 和 retryAIResponse 共用）
+// circuitOpen 为 true 时：禁用重试按钮、改用警告色 hint、点击重试时 toast 提示
+function createRetryBar(session, circuitOpen) {
+  const retryBar = document.createElement('div')
+  retryBar.className = 'ast-retry-bar' + (circuitOpen ? ' ast-retry-bar-circuit' : '')
+  const retrySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
+  const continueSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+  const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="vertical-align:-2px"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+  const hintText = circuitOpen ? t('assistant.retryCircuitHint') : t('assistant.retryHint')
+  const hintIcon = circuitOpen ? warnSvg + ' ' : ''
+  retryBar.innerHTML = `
+    <button class="btn btn-sm btn-primary ast-btn-retry"${circuitOpen ? ' disabled aria-disabled="true"' : ''}>${retrySvg} ${t('assistant.retry')}</button>
+    <button class="btn btn-sm btn-secondary ast-btn-continue">${continueSvg} ${t('assistant.continueInput')}</button>
+    <span class="ast-retry-hint">${hintIcon}${hintText}</span>
+  `
+  retryBar.querySelector('.ast-btn-retry').addEventListener('click', (e) => {
+    if (circuitOpen) {
+      e.preventDefault()
+      toast(t('assistant.retryCircuitBlocked'), 'warn')
+      return
+    }
+    retryBar.remove()
+    session.messages.pop()
+    saveSessions()
+    setSessionStatus(session.id, 'idle')
+    retryAIResponse(session)
+  })
+  retryBar.querySelector('.ast-btn-continue').addEventListener('click', () => {
+    retryBar.remove()
+    setSessionStatus(session.id, 'idle')
+    renderSessionList()
+    _textarea?.focus()
+  })
+  return retryBar
+}
+
 // ── 图片附件 ──
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024 // 4MB
 const MAX_IMAGE_DIM = 2048 // 最大边长
@@ -1519,6 +1592,8 @@ function loadConfig() {
 
 function saveConfig() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(_config))
+  // Fix #226: 配置变更后重置熔断状态，让用户改了 API/模型/key 后能立刻重试
+  resetCircuit()
 }
 
 // ── 会话管理 ──
@@ -1566,6 +1641,8 @@ function createSession() {
   _sessions.push(session)
   _currentSessionId = session.id
   saveSessions()
+  // Fix #226: 新会话重置熔断状态，与旧会话的错误历史隔离
+  resetCircuit()
   return session
 }
 
@@ -3964,42 +4041,22 @@ async function sendMessageDirect(text) {
       aiMsg.content += aiMsg.content ? '\n\n*[' + t('assistant.stopped') + ']*' : '*[' + t('assistant.stopped') + ']*'
     } else {
       setSessionStatus(session.id, 'error')
+      // Fix #226: 记录错误用于熔断判断
+      recordRequestFailure(err)
       // 保留已有内容，追加错误信息和重试按钮
       const errInfo = aiMsg.content
         ? `\n\n---\n**${t('assistant.requestInterrupted')}**: ${err.message}`
         : err.message
       aiMsg.content += errInfo
       aiMsg._canRetry = true
+      aiMsg._circuitOpen = isCircuitOpenFor(err)
     }
     renderMessages()
 
-    // 错误后插入重试按钮
+    // 错误后插入重试按钮（circuit 打开时禁用并提示）
     if (aiMsg._canRetry && _messagesEl) {
-      const retryBar = document.createElement('div')
-      retryBar.className = 'ast-retry-bar'
-      const retrySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
-      const continueSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-      retryBar.innerHTML = `
-        <button class="btn btn-sm btn-primary ast-btn-retry">${retrySvg} ${t('assistant.retry')}</button>
-        <button class="btn btn-sm btn-secondary ast-btn-continue">${continueSvg} ${t('assistant.continueInput')}</button>
-        <span class="ast-retry-hint">${t('assistant.retryHint')}</span>
-      `
-      _messagesEl.appendChild(retryBar)
+      _messagesEl.appendChild(createRetryBar(session, !!aiMsg._circuitOpen))
       _messagesEl.scrollTop = _messagesEl.scrollHeight
-
-      retryBar.querySelector('.ast-btn-retry').addEventListener('click', () => {
-        retryBar.remove()
-        session.messages.pop()
-        saveSessions()
-        setSessionStatus(session.id, 'idle')
-        retryAIResponse(session)
-      })
-      retryBar.querySelector('.ast-btn-continue').addEventListener('click', () => {
-        retryBar.remove()
-        setSessionStatus(session.id, 'idle')
-        renderSessionList()
-        _textarea?.focus()
-      })
     }
   } finally {
     _isStreaming = false
@@ -4104,39 +4161,19 @@ async function retryAIResponse(session) {
       aiMsg.content += aiMsg.content ? '\n\n*[' + t('assistant.stopped') + ']*' : '*[' + t('assistant.stopped') + ']*'
     } else {
       setSessionStatus(session.id, 'error')
+      // Fix #226: 记录错误用于熔断判断
+      recordRequestFailure(err)
       aiMsg.content += aiMsg.content
         ? `\n\n---\n**${t('assistant.requestInterrupted')}**: ${err.message}`
         : err.message
       aiMsg._canRetry = true
+      aiMsg._circuitOpen = isCircuitOpenFor(err)
     }
     renderMessages()
 
     if (aiMsg._canRetry && _messagesEl) {
-      const retryBar = document.createElement('div')
-      retryBar.className = 'ast-retry-bar'
-      const retrySvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
-      const continueSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
-      retryBar.innerHTML = `
-        <button class="btn btn-sm btn-primary ast-btn-retry">${retrySvg} ${t('assistant.retry')}</button>
-        <button class="btn btn-sm btn-secondary ast-btn-continue">${continueSvg} ${t('assistant.continueInput')}</button>
-        <span class="ast-retry-hint">${t('assistant.retryHint')}</span>
-      `
-      _messagesEl.appendChild(retryBar)
+      _messagesEl.appendChild(createRetryBar(session, !!aiMsg._circuitOpen))
       _messagesEl.scrollTop = _messagesEl.scrollHeight
-
-      retryBar.querySelector('.ast-btn-retry').addEventListener('click', () => {
-        retryBar.remove()
-        session.messages.pop()
-        saveSessions()
-        setSessionStatus(session.id, 'idle')
-        retryAIResponse(session)
-      })
-      retryBar.querySelector('.ast-btn-continue').addEventListener('click', () => {
-        retryBar.remove()
-        setSessionStatus(session.id, 'idle')
-        renderSessionList()
-        _textarea?.focus()
-      })
     }
   } finally {
     _isStreaming = false
