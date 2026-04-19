@@ -1,5 +1,8 @@
 # 依赖
 node_modules/
+# 防止贡献者用 pnpm 安装依赖时误提 lock（本项目使用 npm / package-lock.json）
+pnpm-lock.yaml
+yarn.lock
 
 .cursor
 docs/issue-solutions.md
