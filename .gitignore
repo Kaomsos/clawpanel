@@ -10,6 +10,11 @@ docs/issue-solutions.md
 dist/
 src-tauri/target/
 
+# Tauri build 自动生成的平台 schema（历史原因 desktop/macOS/windows 已 track；
+# Linux 平台的 schema 只在 Linux 上构建时才会生成，不同 Linux 机器产出也不一致，
+# 容易被贡献者误提到 PR 里）
+src-tauri/gen/schemas/linux-schema.json
+
 # 日志
 *.log
 tauri-dev.log
