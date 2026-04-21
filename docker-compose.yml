@@ -137,7 +137,7 @@ services:
   #   command: >
   #     sh -c "npm install -g @qingchencloud/openclaw-zh --registry https://registry.npmmirror.com &&
   #            openclaw init 2>/dev/null || true &&
-  #            openclaw gateway start --foreground"
+  #            openclaw gateway run --bind lan --port 18789"
   #   healthcheck:
   #     test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
   #     interval: 30s

@@ -31,10 +31,12 @@
                         └── 管理 Gateway 进程
                               │
                               ▼
-              OpenClaw Gateway (容器内或宿主机, :18789)
+              OpenClaw Gateway (容器内, :18789)
 ```
 
 ClawPanel Web 版 = Vite 开发服务器 + `dev-api.js` 后端中间件，在容器内提供完整管理功能。
+
+> **关于 Hermes：** 当前推荐部署仅启用 **ClawPanel + OpenClaw Gateway**，不启动 Hermes Gateway。原因是 ClawPanel 对 Hermes 的集成支持尚不完善，启用后体验不佳，建议保持 `AUTO_START_HERMES_GATEWAY=0`。如需使用 Hermes，请参考独立部署方案。
 
 ---
 
@@ -66,72 +68,50 @@ docker run -d \
 
 ## 方式二：Docker Compose（推荐）
 
-创建 `docker-compose.yml`：
+使用仓库内自带的 `docker-compose.fullstack.yml` 与 `Dockerfile.fullstack`，单容器同时运行 ClawPanel + OpenClaw Gateway。
 
-```yaml
-version: '3.8'
+### 1. 准备 .env
 
-services:
-  clawpanel:
-    build:
-      context: .
-      dockerfile: Dockerfile.clawpanel
-    container_name: clawpanel
-    restart: unless-stopped
-    ports:
-      - "1420:1420"
-    volumes:
-      - openclaw-data:/root/.openclaw
-    environment:
-      - NODE_ENV=production
-
-  gateway:
-    image: node:22-slim
-    container_name: openclaw-gateway
-    restart: unless-stopped
-    ports:
-      - "18789:18789"
-    volumes:
-      - openclaw-data:/root/.openclaw
-    command: >
-      sh -c "npm install -g @qingchencloud/openclaw-zh --registry https://registry.npmmirror.com &&
-             openclaw init 2>/dev/null || true &&
-             openclaw gateway start --foreground"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-volumes:
-  openclaw-data:
-```
-
-同目录下创建 `Dockerfile.clawpanel`：
-
-```dockerfile
-FROM node:22-slim
-
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-RUN git clone https://github.com/qingchencloud/clawpanel.git . && \
-    npm install
-
-EXPOSE 1420
-
-RUN npm run build
-
-CMD ["npm", "run", "serve"]
-```
-
-启动：
+复制示例并按需修改（Hermes 保持关闭）：
 
 ```bash
-docker compose up -d
+cp .env.example .env   # 或直接编辑已有的 .env
 ```
 
-这样 ClawPanel 和 Gateway 共享同一个 `openclaw-data` 卷，ClawPanel 可以直接管理 Gateway。
+关键配置项：
+
+```ini
+CLAWPANEL_PORT=1420
+OPENCLAW_GATEWAY_PORT=18789
+AUTO_START_OPENCLAW_GATEWAY=1
+AUTO_START_HERMES_GATEWAY=0   # 保持关闭，ClawPanel 对 Hermes 支持不友好
+```
+
+### 2. 启动
+
+```bash
+docker compose --env-file .env -f docker-compose.fullstack.yml up -d --build
+```
+
+### 3. 验证
+
+```bash
+# 容器状态
+docker compose --env-file .env -f docker-compose.fullstack.yml ps
+
+# 健康检查
+curl http://127.0.0.1:1420/        # ClawPanel Web
+curl http://127.0.0.1:18789/health # OpenClaw Gateway
+```
+
+> **为什么不启动 Hermes？** ClawPanel 对 Hermes Gateway 的集成支持尚不完善，强行启用后交互体验不佳（配置入口缺失、状态显示异常等）。当前推荐只跑 ClawPanel + OpenClaw，待 Hermes 集成成熟后再开启。
+
+### 停止 / 重启
+
+```bash
+docker compose --env-file .env -f docker-compose.fullstack.yml down
+docker compose --env-file .env -f docker-compose.fullstack.yml up -d
+```
 
 ---
 
@@ -356,11 +336,15 @@ docker exec -it clawpanel npm install -g @qingchencloud/openclaw-zh --registry h
 docker exec -it clawpanel openclaw init
 ```
 
+### Q: 为什么不启用 Hermes Gateway？
+
+ClawPanel 对 Hermes Gateway 的集成支持尚不完善，强行启用后会出现配置入口缺失、连接状态显示异常等问题，体验较差。**当前推荐仅运行 ClawPanel + OpenClaw Gateway**，在 `.env` 中保持 `AUTO_START_HERMES_GATEWAY=0`。待后续版本完善 Hermes 集成后再考虑开启。
+
 ### Q: Gateway 按钮不工作（Docker 环境）？
 
 容器内管理 Gateway 进程需要特殊权限。推荐方案：
 
-1. **Compose 模式**：Gateway 作为独立容器运行，用 `docker compose restart gateway` 管理
+1. **Fullstack Compose 模式**（推荐）：使用 `docker-compose.fullstack.yml`，ClawPanel 和 OpenClaw Gateway 在同一容器内运行，无需额外权限配置
 2. **Host 网络模式**：`--network host` 让 ClawPanel 直接管理宿主机进程
 
 ### Q: 数据会丢失吗？

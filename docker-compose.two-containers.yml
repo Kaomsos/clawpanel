@@ -1,0 +1,57 @@
+services:
+  clawpanel:
+    build:
+      context: .
+      dockerfile: Dockerfile.fullstack
+    image: ${TWO_CONTAINER_PANEL_IMAGE_NAME:-clawpanel-openclaw:local}
+    container_name: ${TWO_CONTAINER_PANEL_NAME:-clawpanel-openclaw}
+    restart: unless-stopped
+    ports:
+      - "${CLAWPANEL_PORT:-1420}:1420"
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      PORT: ${CLAWPANEL_PORT:-1420}
+      OPENCLAW_GATEWAY_PORT: ${OPENCLAW_GATEWAY_PORT:-18789}
+      AUTO_START_OPENCLAW_GATEWAY: "${AUTO_START_OPENCLAW_GATEWAY:-1}"
+      AUTO_START_HERMES_GATEWAY: "0"
+      HERMES_GATEWAY_PORT: ${HERMES_GATEWAY_PORT:-8642}
+      HERMES_EXTERNAL_URL: ${HERMES_EXTERNAL_URL:-http://hermes:8642}
+    volumes:
+      - ${OPENCLAW_DATA_DIR:-./data/openclaw}:/root/.openclaw
+      - ${PANEL_DATA_DIR:-./data/panel}:/app/data
+    depends_on:
+      hermes:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:1420/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  hermes:
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes
+    image: ${TWO_CONTAINER_HERMES_IMAGE_NAME:-hermes-agent:local}
+    container_name: ${TWO_CONTAINER_HERMES_NAME:-hermes-agent}
+    restart: unless-stopped
+    ports:
+      - "${HERMES_GATEWAY_PORT:-8642}:8642"
+    environment:
+      TZ: ${TZ:-Asia/Shanghai}
+      HERMES_GATEWAY_PORT: ${HERMES_GATEWAY_PORT:-8642}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-openai}
+      HERMES_MODEL: ${HERMES_MODEL:-gpt-4o}
+      HERMES_BASE_URL: ${HERMES_BASE_URL:-}
+      HERMES_API_KEY: ${HERMES_API_KEY:-}
+    volumes:
+      - ${HERMES_DATA_DIR:-./data/hermes}:/root/.hermes
+      - ${HERMES_LOG_DIR:-./data/hermes-logs}:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8642/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

@@ -406,8 +406,8 @@ openclaw --version
 Gateway 和 ClawPanel 是独立进程，需要分别启动：
 
 ```bash
-# 启动 Gateway（后台）
-openclaw gateway start &
+# 启动 Gateway（前台，建议配合 systemd 或进程管理器）
+openclaw gateway run --bind lan --port 18789
 
 # 启动 ClawPanel Web
 cd /opt/clawpanel
